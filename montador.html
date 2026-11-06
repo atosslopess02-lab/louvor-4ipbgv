@@ -57,7 +57,7 @@ h2{font-size:1rem;letter-spacing:.08em;text-transform:uppercase;color:var(--gree
     <b>Como usar</b>
     <ol>
       <li>Escolha o domingo e toque em <b>Puxar repertório do site</b>: as músicas entram na ordem da liturgia.</li>
-      <li>Para trocar ou incluir uma música, escolha o momento e toque no campo <b>Música</b>: aparece a lista do repertório daquele momento (ou <b>Todas as músicas</b>).</li>
+      <li>Para trocar ou incluir uma música, escolha o momento e toque no campo <b>Música</b>: aparece a lista do repertório daquele momento (ou <b>Todas as músicas</b>). No momento <b>Hino</b> aparecem todos os hinos do Novo Cântico.</li>
       <li>Em cada música, toque em <b>Abrir no Cifra Club</b>, copie a cifra inteira e cole no campo da música.</li>
       <li>Escolha o <b>tom desejado</b>. Os acordes são transpostos sozinhos.</li>
       <li>Confira a prévia e toque em <b>Baixar PDF</b>.</li>
@@ -85,7 +85,8 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const MOMENTOS = ['Hino','Música nova','Prelúdio','Adoração','Confissão','Louvor','Pós-pregação','Poslúdio','Ceia','Outro','Todas as músicas'];
 const MOM_COD = {'Adoração':'A','Confissão':'C','Louvor':'L'};
-const songsFor = mom => { const all = (siteData && siteData.musicas) || []; const c = MOM_COD[mom]; return (c ? all.filter(m => (m.m||'').includes(c)) : all).slice().sort((a,b)=>a.t.localeCompare(b.t,'pt')); };
+const hinos = () => ((siteData && siteData.hinario) || []).map(h => { const n = String(parseInt(h[0],10)) + (h[0].includes('-A') ? '-A' : ''); return {t:`Hino ${n} – ${h[1]}`, art:'Hinário Novo Cântico', cc:'https://www.cifraclub.com.br/?q=' + encodeURIComponent(h[1] + ' Novo Cântico'), hino:true}; });
+const songsFor = mom => { if(mom === 'Hino') return hinos(); const all = (siteData && siteData.musicas) || []; const c = MOM_COD[mom]; return (c ? all.filter(m => (m.m||'').includes(c)) : all).slice().sort((a,b)=>a.t.localeCompare(b.t,'pt')); };
 const CULTOS = ['Manhã','Noite'];
 const SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const FLAT  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
@@ -212,7 +213,7 @@ $('#list').addEventListener('input', e => {
 $('#list').addEventListener('change', e => {
   if(e.target.dataset.k === 'titulo'){
     const i = +e.target.closest('.card').dataset.i, s = state.songs[i];
-    const m = ((siteData && siteData.musicas) || []).find(x => x.t === e.target.value);
+    const m = [...((siteData && siteData.musicas) || []), ...hinos()].find(x => x.t === e.target.value);
     if(m){ s.titulo = m.t; s.artista = m.art || ''; s.cc = m.cc || ''; save(); render(); toast('Cifra pronta: toque em Abrir no Cifra Club'); }
     return;
   }
@@ -253,7 +254,7 @@ $('#pull').onclick = async () => {
     for(const c of rep) for(const it of c.itens){
       const m = by[it.t] || {};
       const keep = old[c.culto+'|'+it.m+'|'+it.t];
-      state.songs.push(keep || {culto:c.culto, momento:it.m, titulo:it.t, artista:m.art||(/^Hino \d+/.test(it.t)?'Hinário Novo Cântico':''), tomOrig:'', tomNovo:'', texto:'', cc:m.cc||''});
+      state.songs.push(keep || {culto:c.culto, momento:it.m, titulo:it.t, artista:m.art||(/^Hino \d+/.test(it.t)?'Hinário Novo Cântico':''), tomOrig:'', tomNovo:'', texto:'', cc:m.cc||(hinos().find(h=>h.t===it.t)||{}).cc||''});
     }
     save(); render(); toast('Repertório de ' + d.split('-').reverse().slice(0,2).join('/') + ' carregado');
   }catch(e){ toast('Não consegui ler o site agora'); }
