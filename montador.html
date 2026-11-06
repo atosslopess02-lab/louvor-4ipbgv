@@ -85,7 +85,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const MOMENTOS = ['Hino','Música nova','Prelúdio','Adoração','Confissão','Louvor','Pós-pregação','Poslúdio','Ceia','Outro','Todas as músicas'];
 const MOM_COD = {'Adoração':'A','Confissão':'C','Louvor':'L'};
-const hinos = () => ((siteData && siteData.hinario) || []).map(h => { const n = String(parseInt(h[0],10)) + (h[0].includes('-A') ? '-A' : ''); return {t:`Hino ${n} – ${h[1]}`, art:'Hinário Novo Cântico', cc:'https://www.cifraclub.com.br/?q=' + encodeURIComponent(h[1] + ' Novo Cântico'), hino:true}; });
+const hinos = () => ((siteData && siteData.hinario) || []).map(h => { const n = String(parseInt(h[0],10)) + (h[0].includes('-A') ? '-A' : ''); return {t:`Hino ${n} – ${h[1]}`, art:'Hinário Novo Cântico', cc: h[4] ? 'https://www.cifraclub.com.br' + h[4] : 'https://www.cifraclub.com.br/?q=' + encodeURIComponent(h[1] + ' Novo Cântico'), hino:true}; });
 const songsFor = mom => { if(mom === 'Hino') return hinos(); const all = (siteData && siteData.musicas) || []; const c = MOM_COD[mom]; return (c ? all.filter(m => (m.m||'').includes(c)) : all).slice().sort((a,b)=>a.t.localeCompare(b.t,'pt')); };
 const CULTOS = ['Manhã','Noite'];
 const SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
@@ -176,7 +176,7 @@ function render(){
     <textarea data-k="texto" placeholder="Cole aqui a cifra copiada do Cifra Club">${esc(s.texto)}</textarea>
     <div class="tools">
       <span class="num">${i+1}. ${esc(s.titulo||'Música')}</span>
-      ${s.cc ? `<a class="cc" href="${esc(s.cc)}" target="_blank" rel="noopener">Abrir no Cifra Club ↗</a>` : `<a class="cc" href="https://www.cifraclub.com.br/?q=${encodeURIComponent(s.titulo||'')}" target="_blank" rel="noopener">Buscar no Cifra Club ↗</a>`}
+      ${s.cc ? `<a class="cc" href="${esc(s.cc)}" target="_blank" rel="noopener">${s.cc.includes('?q=') ? 'Buscar no Cifra Club' : 'Abrir no Cifra Club'} ↗</a>` : `<a class="cc" href="https://www.cifraclub.com.br/?q=${encodeURIComponent(s.titulo||'')}" target="_blank" rel="noopener">Buscar no Cifra Club ↗</a>`}
       <button type="button" class="small" data-act="up" aria-label="Subir">↑</button>
       <button type="button" class="small" data-act="down" aria-label="Descer">↓</button>
       <button type="button" class="small danger" data-act="del">Remover</button>
