@@ -57,6 +57,7 @@ h2{font-size:1rem;letter-spacing:.08em;text-transform:uppercase;color:var(--gree
     <b>Como usar</b>
     <ol>
       <li>Escolha o domingo e toque em <b>Puxar repertório do site</b>: as músicas entram na ordem da liturgia.</li>
+      <li>Para trocar ou incluir uma música, escolha o momento e toque no campo <b>Música</b>: aparece a lista do repertório daquele momento (ou <b>Todas as músicas</b>).</li>
       <li>Em cada música, toque em <b>Abrir no Cifra Club</b>, copie a cifra inteira e cole no campo da música.</li>
       <li>Escolha o <b>tom desejado</b>. Os acordes são transpostos sozinhos.</li>
       <li>Confira a prévia e toque em <b>Baixar PDF</b>.</li>
@@ -82,7 +83,9 @@ h2{font-size:1rem;letter-spacing:.08em;text-transform:uppercase;color:var(--gree
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const MOMENTOS = ['Hino','Música nova','Prelúdio','Adoração','Confissão','Louvor','Pós-pregação','Poslúdio','Ceia','Outro'];
+const MOMENTOS = ['Hino','Música nova','Prelúdio','Adoração','Confissão','Louvor','Pós-pregação','Poslúdio','Ceia','Outro','Todas as músicas'];
+const MOM_COD = {'Adoração':'A','Confissão':'C','Louvor':'L'};
+const songsFor = mom => { const all = (siteData && siteData.musicas) || []; const c = MOM_COD[mom]; return (c ? all.filter(m => (m.m||'').includes(c)) : all).slice().sort((a,b)=>a.t.localeCompare(b.t,'pt')); };
 const CULTOS = ['Manhã','Noite'];
 const SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const FLAT  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
@@ -162,7 +165,7 @@ function render(){
     <div class="head">
       <label>Culto<select data-k="culto">${opts(CULTOS, s.culto)}</select></label>
       <label>Momento<select data-k="momento">${opts(MOMENTOS.includes(s.momento)?MOMENTOS:[s.momento,...MOMENTOS], s.momento)}</select></label>
-      <label>Música<input data-k="titulo" value="${esc(s.titulo)}" placeholder="Nome da música"></label>
+      <label>Música<input data-k="titulo" list="dl${i}" value="${esc(s.titulo)}" placeholder="Toque para escolher" autocomplete="off"><datalist id="dl${i}">${songsFor(s.momento).map(m=>`<option value="${esc(m.t)}">${esc(m.art||'')}</option>`).join('')}</datalist></label>
     </div>
     <div class="head2">
       <label>Artista / fonte<input data-k="artista" value="${esc(s.artista)}" placeholder="Ex.: Comunidade da Vila"></label>
@@ -187,7 +190,7 @@ function preview(){
   for(const s of ok){
     let h = '';
     if(s.culto !== lastCulto){ h += `<div class="pv-culto">${esc(s.culto.toUpperCase())}</div>`; lastCulto = s.culto; }
-    h += `<div class="pv-mom">${esc(s.momento.toUpperCase())}</div>`;
+    if(s.momento !== 'Todas as músicas') h += `<div class="pv-mom">${esc(s.momento.toUpperCase())}</div>`;
     h += `<div class="pv-t">${esc(s.titulo)}</div><div class="pv-a">${esc(s.artista)}${(s.tomNovo||s.tomOrig)?' · Tom: '+esc(s.tomNovo||s.tomOrig):''}</div>`;
     const body = s.texto ? finalLines(s).map(l => l.ch ? `<span class="ch">${esc(l.t)}</span>` : l.tag ? `<i>${esc(l.t)}</i>` : esc(l.t)).join('\n') : '<span class="empty">(cole a cifra desta música)</span>';
     html += `<section class="song${first?' first':''}">${h}<pre>${body}</pre></section>`;
@@ -202,11 +205,21 @@ $('#list').addEventListener('input', e => {
     const p = parsePaste(e.target.value);
     s.texto = p.text; e.target.value = p.text;
     if(p.tom && !s.tomOrig){ s.tomOrig = p.tom; e.target.closest('.card').querySelector('[data-k="tomOrig"]').value = p.tom; toast('Tom da cifra: ' + p.tom); }
-  } else s[k] = e.target.value;
+  } else if(!(k === 'titulo' && !e.target.value && e.target.dataset.prev)) s[k] = e.target.value;
   if(k === 'titulo') e.target.closest('.card').querySelector('.num').textContent = (i+1) + '. ' + (s.titulo||'Música');
   save(); preview();
 });
-$('#list').addEventListener('change', e => { if(e.target.tagName === 'SELECT'){ const i = +e.target.closest('.card').dataset.i; state.songs[i][e.target.dataset.k] = e.target.value; save(); preview(); } });
+$('#list').addEventListener('change', e => {
+  if(e.target.dataset.k === 'titulo'){
+    const i = +e.target.closest('.card').dataset.i, s = state.songs[i];
+    const m = ((siteData && siteData.musicas) || []).find(x => x.t === e.target.value);
+    if(m){ s.titulo = m.t; s.artista = m.art || ''; s.cc = m.cc || ''; save(); render(); toast('Cifra pronta: toque em Abrir no Cifra Club'); }
+    return;
+  }
+  if(e.target.tagName === 'SELECT'){ const i = +e.target.closest('.card').dataset.i; state.songs[i][e.target.dataset.k] = e.target.value; save(); if(e.target.dataset.k === 'momento') render(); else preview(); } });
+/* ao tocar no campo Música, limpa o texto para a lista mostrar todas as opções do momento */
+$('#list').addEventListener('focusin', e => { if(e.target.dataset.k === 'titulo' && e.target.value){ e.target.dataset.prev = e.target.value; e.target.placeholder = e.target.value; e.target.value = ''; } });
+$('#list').addEventListener('focusout', e => { if(e.target.dataset.k === 'titulo' && !e.target.value && e.target.dataset.prev){ e.target.value = e.target.dataset.prev; } });
 $('#list').addEventListener('click', e => {
   const a = e.target.dataset.act; if(!a) return;
   const i = +e.target.closest('.card').dataset.i;
@@ -263,7 +276,7 @@ $('#pdf').onclick = () => {
     if(!first){ newPage(); }
     first = false;
     if(s.culto !== lastCulto){ doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(79,122,92); doc.text(s.culto.toUpperCase(), W/2, y, {align:'center'}); y += 18; lastCulto = s.culto; }
-    doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(93,111,98); doc.text(s.momento.toUpperCase(), W/2, y, {align:'center'}); y += 22;
+    if(s.momento !== 'Todas as músicas'){ doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(93,111,98); doc.text(s.momento.toUpperCase(), W/2, y, {align:'center'}); } y += 22;
     doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(31,45,36); doc.text(s.titulo || '', M, y); y += 15;
     doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(93,111,98);
     doc.text([s.artista, (s.tomNovo||s.tomOrig) ? 'Tom: ' + (s.tomNovo||s.tomOrig) : ''].filter(Boolean).join('  ·  '), M, y); y += 20;
@@ -282,7 +295,7 @@ $('#pdf').onclick = () => {
   toast('PDF baixado');
 };
 
-load(); render();
+load(); render(); getSite().then(() => render()).catch(() => {});
 </script>
 </body>
 </html>
