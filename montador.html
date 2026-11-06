@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Montador de cifras · Louvor 4ª IPB GV</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+/* Layout: barra superior com ações, coluna de "músicas da liturgia" (cartões editáveis) e prévia do PDF abaixo */
+:root{--bg:#f3f7f2;--surface:#fff;--ink:#1f2d24;--muted:#5d6f62;--green:#4f7a5c;--soft:#dfeadf;--line:#d6e2d6;--chord:#2f6b43;--danger:#a3413b}
+@media (prefers-color-scheme:dark){:root{--bg:#141b16;--surface:#1c2620;--ink:#e3ece4;--muted:#9db1a2;--green:#8fbf9a;--soft:#24342a;--line:#2e3d33;--chord:#8fd19f;--danger:#e58a83}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:16px;line-height:1.45}
+.bar{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.bar h1{font-size:1.1rem;margin:0 auto 0 0}
+button,.btn{font:inherit;font-weight:700;border-radius:999px;padding:9px 16px;min-height:42px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+button.primary{background:var(--green);border-color:var(--green);color:#fff}
+@media (prefers-color-scheme:dark){button.primary{color:#10170f}}
+button.small{min-height:34px;padding:5px 11px;font-size:.85rem}
+button.danger{color:var(--danger)}
+main{max-width:900px;margin:0 auto;padding:16px 14px 80px}
+.intro{background:var(--soft);border-radius:12px;padding:12px 16px;margin-bottom:16px}
+.intro ol{margin:6px 0 0;padding-left:20px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:14px}
+label{display:flex;flex-direction:column;gap:3px;font-size:.82rem;font-weight:700;color:var(--muted)}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:40px}
+textarea{width:100%;min-height:150px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.3;white-space:pre;overflow:auto}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.card .head{display:grid;grid-template-columns:110px 1fr 1fr;gap:8px;margin-bottom:8px}
+.card .head2{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px}
+@media (max-width:640px){.card .head,.card .head2{grid-template-columns:1fr 1fr}}
+.card .tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
+.card .num{font-weight:800;color:var(--green);margin-right:auto}
+.hint{color:var(--muted);font-size:.85rem}
+.cc{font-size:.85rem;color:var(--green);font-weight:700}
+h2{font-size:1rem;letter-spacing:.08em;text-transform:uppercase;color:var(--green);margin:22px 0 10px}
+#preview{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+#preview pre{margin:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.3;white-space:pre;overflow-x:auto}
+.pv-culto{font-weight:800;color:var(--green);text-align:center;letter-spacing:.1em;margin:18px 0 4px}
+.pv-mom{font-weight:700;color:var(--muted);text-align:center;font-size:.85rem;letter-spacing:.08em;margin-bottom:6px}
+.pv-t{font-weight:800;font-size:1.1rem}.pv-a{color:var(--muted);font-size:.9rem}
+.ch{color:var(--chord);font-weight:700}
+.empty{color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-weight:700;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+@media print{.bar,.intro,.editor,h2.ed,.toast{display:none!important}body{background:#fff;color:#000}#preview{border:0;padding:0}.ch{color:#1d5b33}.song{break-before:page}.song.first{break-before:auto}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>🎼 Montador de cifras</h1>
+  <a class="btn" href="./">← Site</a>
+  <button type="button" class="primary" id="pdf">⬇️ Baixar PDF</button>
+</div>
+<main>
+  <div class="intro">
+    <b>Como usar</b>
+    <ol>
+      <li>Escolha o domingo e toque em <b>Puxar repertório do site</b>: as músicas entram na ordem da liturgia.</li>
+      <li>Em cada música, toque em <b>Abrir no Cifra Club</b>, copie a cifra inteira e cole no campo da música.</li>
+      <li>Escolha o <b>tom desejado</b>. Os acordes são transpostos sozinhos.</li>
+      <li>Confira a prévia e toque em <b>Baixar PDF</b>.</li>
+    </ol>
+    <div class="hint" style="margin-top:6px">Tudo fica só neste aparelho. Nada do que você cola é enviado para a internet.</div>
+  </div>
+
+  <div class="editor">
+    <div class="row">
+      <label>Domingo <input type="date" id="date"></label>
+      <button type="button" id="pull">⤵️ Puxar repertório do site</button>
+      <button type="button" id="add">➕ Adicionar música</button>
+      <button type="button" class="danger" id="clear">Limpar tudo</button>
+    </div>
+    <div id="list"></div>
+  </div>
+
+  <h2 class="ed">Prévia</h2>
+  <div id="preview"></div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const MOMENTOS = ['Hino','Música nova','Prelúdio','Adoração','Confissão','Louvor','Pós-pregação','Poslúdio','Ceia','Outro'];
+const CULTOS = ['Manhã','Noite'];
+const SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const FLAT  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+const IDX = {C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,Fb:4,'E#':5,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11,Cb:11,'B#':0};
+const KEYS = ['C','C#','Db','D','Eb','E','F','F#','Gb','G','Ab','A','Bb','B'];
+
+let state = {date:'', songs:[]};
+let siteData = null;
+
+/* ---------- acordes ---------- */
+const CHORD = /^(\(?)([A-G][#b]?)(\S*?)(?:\/([A-G][#b]?)(\S*?))?(\)?)$/;
+const isChordTok = t => /^[()|]+$/.test(t) || /^\(?[A-G][#b]?[0-9mMajdisuog°º+()/#bA-G]*\)?$/.test(t) || /^\(?[A-G][#b]?[0-9mMajdisuog°º+()/#bA-G]*\)?$/.test(t.replace(/^\(/,'').replace(/\)$/,''));
+function isChordLine(l){
+  let s = l.trim(); if(!s) return false;
+  s = s.replace(/^\[[^\]]*\]\s*/,'');
+  if(!s) return false;
+  const toks = s.split(/\s+/);
+  return toks.every(t => isChordTok(t)) && toks.some(t => /[A-G]/.test(t));
+}
+function useFlats(key){ const k = key.replace(/m$/,''); return ['F','Bb','Eb','Ab','Db','Gb','Cb'].includes(k) || (/m$/.test(key) && ['D','G','C','F','Bb','Eb'].includes(k)); }
+function tNote(n, d, flats){ const i = IDX[n]; if(i===undefined) return n; const j = ((i+d)%12+12)%12; return (flats?FLAT:SHARP)[j]; }
+function tTok(tok, d, flats){
+  const m = tok.match(CHORD); if(!m) return tok;
+  return m[1] + tNote(m[2],d,flats) + m[3] + (m[4] ? '/' + tNote(m[4],d,flats) + (m[5]||'') : '') + m[6];
+}
+function transposeLine(line, d, flats){
+  if(!d) return line;
+  let out = '', pos = 0;
+  const re = /\S+/g; let m;
+  while((m = re.exec(line))){
+    const nt = tTok(m[0], d, flats);
+    let col = m.index;
+    if(out.length && col <= out.length) col = out.length + 1;
+    out += ' '.repeat(Math.max(0, col - out.length)) + nt;
+  }
+  return out;
+}
+function keyRoot(k){ const m = String(k||'').match(/^([A-G][#b]?)/); return m ? m[1] : null; }
+function diff(from, to){ const a = IDX[keyRoot(from)], b = IDX[keyRoot(to)]; if(a===undefined||b===undefined) return 0; return ((b-a)%12+12)%12; }
+
+/* limpa o texto colado do Cifra Club e tenta achar o tom original */
+function parsePaste(txt){
+  let lines = txt.replace(/\r/g,'').replace(/\t/g,'    ').split('\n');
+  let tom = '';
+  lines = lines.filter(l => {
+    const m = l.match(/^\s*Tom:\s*([A-G][#b]?m?)/i);
+    if(m && !tom){ tom = m[1][0].toUpperCase()+m[1].slice(1); return false; }
+    return true;
+  });
+  while(lines.length && !lines[0].trim()) lines.shift();
+  while(lines.length && !lines[lines.length-1].trim()) lines.pop();
+  const out = []; let blank = 0;
+  for(const l of lines){ if(!l.trim()){ if(++blank>1) continue; } else blank = 0; out.push(l.replace(/\s+$/,'')); }
+  return {tom, text: out.join('\n')};
+}
+function finalLines(s){
+  const d = diff(s.tomOrig, s.tomNovo || s.tomOrig);
+  const flats = useFlats(s.tomNovo || s.tomOrig || 'C');
+  return (s.texto||'').split('\n').map(l => {
+    const ch = isChordLine(l);
+    return {t: ch ? transposeLine(l, d, flats) : l, ch, tag: !ch && /^\s*\[[^\]]*\]\s*$/.test(l)};
+  });
+}
+
+/* ---------- estado ---------- */
+function save(){ try{ localStorage.setItem('montador-cifras', JSON.stringify(state)); }catch(e){} }
+function load(){ try{ const s = JSON.parse(localStorage.getItem('montador-cifras')||'null'); if(s && Array.isArray(s.songs)) state = s; }catch(e){} }
+function blank(culto='Noite', momento='Louvor'){ return {culto, momento, titulo:'', artista:'', tomOrig:'', tomNovo:'', texto:'', cc:''}; }
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('on'), 2200); }
+
+/* ---------- editor ---------- */
+function opts(list, v){ return list.map(o => `<option${o===v?' selected':''}>${esc(o)}</option>`).join(''); }
+function render(){
+  $('#date').value = state.date || '';
+  $('#list').innerHTML = state.songs.length ? state.songs.map((s,i) => `
+  <div class="card" data-i="${i}">
+    <div class="head">
+      <label>Culto<select data-k="culto">${opts(CULTOS, s.culto)}</select></label>
+      <label>Momento<select data-k="momento">${opts(MOMENTOS.includes(s.momento)?MOMENTOS:[s.momento,...MOMENTOS], s.momento)}</select></label>
+      <label>Música<input data-k="titulo" value="${esc(s.titulo)}" placeholder="Nome da música"></label>
+    </div>
+    <div class="head2">
+      <label>Artista / fonte<input data-k="artista" value="${esc(s.artista)}" placeholder="Ex.: Comunidade da Vila"></label>
+      <label>Tom da cifra colada<select data-k="tomOrig"><option value="">—</option>${KEYS.flatMap(k=>[k,k+'m']).map(k=>`<option${k===s.tomOrig?' selected':''}>${k}</option>`).join('')}</select></label>
+      <label>Tom desejado<select data-k="tomNovo"><option value="">Mesmo tom</option>${KEYS.flatMap(k=>[k,k+'m']).map(k=>`<option${k===s.tomNovo?' selected':''}>${k}</option>`).join('')}</select></label>
+    </div>
+    <textarea data-k="texto" placeholder="Cole aqui a cifra copiada do Cifra Club">${esc(s.texto)}</textarea>
+    <div class="tools">
+      <span class="num">${i+1}. ${esc(s.titulo||'Música')}</span>
+      ${s.cc ? `<a class="cc" href="${esc(s.cc)}" target="_blank" rel="noopener">Abrir no Cifra Club ↗</a>` : `<a class="cc" href="https://www.cifraclub.com.br/?q=${encodeURIComponent(s.titulo||'')}" target="_blank" rel="noopener">Buscar no Cifra Club ↗</a>`}
+      <button type="button" class="small" data-act="up" aria-label="Subir">↑</button>
+      <button type="button" class="small" data-act="down" aria-label="Descer">↓</button>
+      <button type="button" class="small danger" data-act="del">Remover</button>
+    </div>
+  </div>`).join('') : '<p class="empty">Nenhuma música ainda. Puxe o repertório do site ou adicione uma música.</p>';
+  preview();
+}
+function preview(){
+  const ok = state.songs.filter(s => s.titulo || s.texto);
+  if(!ok.length){ $('#preview').innerHTML = '<p class="empty">A prévia aparece aqui.</p>'; return; }
+  let html = '', lastCulto = null, first = true;
+  for(const s of ok){
+    let h = '';
+    if(s.culto !== lastCulto){ h += `<div class="pv-culto">${esc(s.culto.toUpperCase())}</div>`; lastCulto = s.culto; }
+    h += `<div class="pv-mom">${esc(s.momento.toUpperCase())}</div>`;
+    h += `<div class="pv-t">${esc(s.titulo)}</div><div class="pv-a">${esc(s.artista)}${(s.tomNovo||s.tomOrig)?' · Tom: '+esc(s.tomNovo||s.tomOrig):''}</div>`;
+    const body = s.texto ? finalLines(s).map(l => l.ch ? `<span class="ch">${esc(l.t)}</span>` : l.tag ? `<i>${esc(l.t)}</i>` : esc(l.t)).join('\n') : '<span class="empty">(cole a cifra desta música)</span>';
+    html += `<section class="song${first?' first':''}">${h}<pre>${body}</pre></section>`;
+    first = false;
+  }
+  $('#preview').innerHTML = html;
+}
+$('#list').addEventListener('input', e => {
+  const k = e.target.dataset.k; if(!k) return;
+  const i = +e.target.closest('.card').dataset.i; const s = state.songs[i];
+  if(k === 'texto' && e.inputType === 'insertFromPaste'){
+    const p = parsePaste(e.target.value);
+    s.texto = p.text; e.target.value = p.text;
+    if(p.tom && !s.tomOrig){ s.tomOrig = p.tom; e.target.closest('.card').querySelector('[data-k="tomOrig"]').value = p.tom; toast('Tom da cifra: ' + p.tom); }
+  } else s[k] = e.target.value;
+  if(k === 'titulo') e.target.closest('.card').querySelector('.num').textContent = (i+1) + '. ' + (s.titulo||'Música');
+  save(); preview();
+});
+$('#list').addEventListener('change', e => { if(e.target.tagName === 'SELECT'){ const i = +e.target.closest('.card').dataset.i; state.songs[i][e.target.dataset.k] = e.target.value; save(); preview(); } });
+$('#list').addEventListener('click', e => {
+  const a = e.target.dataset.act; if(!a) return;
+  const i = +e.target.closest('.card').dataset.i;
+  if(a === 'del'){ if(!confirmDel(i, e.target)) return; state.songs.splice(i,1); }
+  if(a === 'up' && i > 0) [state.songs[i-1], state.songs[i]] = [state.songs[i], state.songs[i-1]];
+  if(a === 'down' && i < state.songs.length-1) [state.songs[i+1], state.songs[i]] = [state.songs[i], state.songs[i+1]];
+  save(); render();
+});
+function confirmDel(i, b){ const s = state.songs[i]; if(!s.texto) return true; if(b.dataset.sure){ return true; } b.dataset.sure = 1; b.textContent = 'Toque de novo para remover'; setTimeout(()=>{ b.textContent='Remover'; delete b.dataset.sure; }, 3000); return false; }
+$('#add').onclick = () => { const last = state.songs[state.songs.length-1]; state.songs.push(blank(last?last.culto:'Noite','Louvor')); save(); render(); };
+$('#date').onchange = e => { state.date = e.target.value; save(); };
+$('#clear').onclick = e => { const b = e.target; if(!b.dataset.sure){ b.dataset.sure = 1; b.textContent = 'Toque de novo para limpar'; setTimeout(()=>{ b.textContent='Limpar tudo'; delete b.dataset.sure; }, 3000); return; } state = {date: state.date, songs: []}; save(); render(); toast('Tudo limpo'); };
+
+/* ---------- puxar do site ---------- */
+async function getSite(){
+  if(siteData) return siteData;
+  const h = await (await fetch('./index.html', {cache:'no-store'})).text();
+  const m = h.match(/const DATA = (\{[\s\S]*?\});\n/);
+  siteData = JSON.parse(m[1]); return siteData;
+}
+$('#pull').onclick = async () => {
+  try{
+    const D = await getSite();
+    let d = state.date;
+    if(!d){ const today = new Date(); today.setHours(0,0,0,0); d = Object.keys(D.repertorios).sort().find(x => new Date(x+'T00:00:00') >= today) || Object.keys(D.repertorios).sort().pop(); state.date = d; }
+    const rep = D.repertorios[d];
+    if(!rep){ toast('Ainda não há repertório desse domingo no site'); return; }
+    const by = {}; (D.musicas||[]).forEach(m => by[m.t] = m);
+    const old = {}; state.songs.forEach(s => { if(s.texto) old[s.culto+'|'+s.momento+'|'+s.titulo] = s; });
+    state.songs = [];
+    for(const c of rep) for(const it of c.itens){
+      const m = by[it.t] || {};
+      const keep = old[c.culto+'|'+it.m+'|'+it.t];
+      state.songs.push(keep || {culto:c.culto, momento:it.m, titulo:it.t, artista:m.art||(/^Hino \d+/.test(it.t)?'Hinário Novo Cântico':''), tomOrig:'', tomNovo:'', texto:'', cc:m.cc||''});
+    }
+    save(); render(); toast('Repertório de ' + d.split('-').reverse().slice(0,2).join('/') + ' carregado');
+  }catch(e){ toast('Não consegui ler o site agora'); }
+};
+
+/* ---------- PDF ---------- */
+$('#pdf').onclick = () => {
+  const ok = state.songs.filter(s => s.titulo || s.texto);
+  if(!ok.length){ toast('Adicione pelo menos uma música'); return; }
+  if(!window.jspdf){ window.print(); return; }
+  const doc = new jspdf.jsPDF({unit:'pt', format:'a4'});
+  const W = 595.28, H = 841.89, M = 40, LH = 11.5;
+  let y = M, page = 1;
+  const dataBR = state.date ? state.date.split('-').reverse().join('/') : '';
+  const foot = () => { doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(93,111,98); doc.text('Equipe de Louvor · 4ª IPB GV' + (dataBR?' · Cifras de '+dataBR:''), M, H-22); doc.text(String(page), W-M, H-22, {align:'right'}); };
+  const newPage = () => { foot(); doc.addPage(); page++; y = M; };
+  const need = h => { if(y + h > H - M) newPage(); };
+  let lastCulto = null, first = true;
+  for(const s of ok){
+    if(!first){ newPage(); }
+    first = false;
+    if(s.culto !== lastCulto){ doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(79,122,92); doc.text(s.culto.toUpperCase(), W/2, y, {align:'center'}); y += 18; lastCulto = s.culto; }
+    doc.setFont('helvetica','bold'); doc.setFontSize(10.5); doc.setTextColor(93,111,98); doc.text(s.momento.toUpperCase(), W/2, y, {align:'center'}); y += 22;
+    doc.setFont('helvetica','bold'); doc.setFontSize(15); doc.setTextColor(31,45,36); doc.text(s.titulo || '', M, y); y += 15;
+    doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(93,111,98);
+    doc.text([s.artista, (s.tomNovo||s.tomOrig) ? 'Tom: ' + (s.tomNovo||s.tomOrig) : ''].filter(Boolean).join('  ·  '), M, y); y += 20;
+    const lines = s.texto ? finalLines(s) : [];
+    lines.forEach((l, k) => {
+      if(!l.t.trim()){ y += LH*0.6; return; }
+      need(l.ch && lines[k+1] && !lines[k+1].ch ? LH*2 : LH);
+      if(l.ch){ doc.setFont('courier','bold'); doc.setTextColor(47,107,67); }
+      else if(l.tag){ doc.setFont('courier','oblique'); doc.setTextColor(93,111,98); }
+      else { doc.setFont('courier','normal'); doc.setTextColor(31,45,36); }
+      doc.setFontSize(10); doc.text(l.t, M, y); y += LH;
+    });
+  }
+  foot();
+  doc.save('Cifras' + (state.date ? ' - ' + state.date.split('-').reverse().join('-') : '') + '.pdf');
+  toast('PDF baixado');
+};
+
+load(); render();
+</script>
+</body>
+</html>
