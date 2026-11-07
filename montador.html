@@ -65,7 +65,7 @@ h2{font-size:1rem;letter-spacing:.08em;text-transform:uppercase;color:var(--gree
       <li>Para trocar ou incluir uma música, escolha o momento e toque no campo <b>Música</b>: aparece a lista do repertório daquele momento (ou <b>Todas as músicas</b>). No momento <b>Hino</b> aparecem todos os hinos do Novo Cântico.</li>
       <li>Em cada música, toque em <b>Abrir no Cifra Club</b> e, na página da cifra, toque no favorito <b>📥 Enviar para o Montador</b> (veja abaixo como instalar). A cifra chega aqui sozinha, na música certa. Se preferir, ainda dá para copiar e colar.</li>
       <li>Escolha o <b>tom desejado</b>. Os acordes são transpostos sozinhos.</li>
-      <li>Confira a prévia e toque em <b>Baixar PDF</b>.</li>
+      <li>Confira a prévia e toque em <b>Baixar PDF</b>. Se o domingo já tiver repertório publicado pelo administrador, o PDF também fica disponível para todos na página inicial do site.</li>
     </ol>
     <div class="hint" style="margin-top:6px">Tudo fica só neste aparelho. Nada do que você cola é enviado para a internet.</div>
   </div>
@@ -383,7 +383,15 @@ $('#pdf').onclick = async () => {
   try{ const b = await carregaFontes(); FONTES.forEach((f,i) => { doc.addFileToVFS(f[0], b[i]); doc.addFont(f[0], f[1], f[2]); }); fontesOK = true; }catch(e){}
   montaPDF(doc, ok, state.date, fontesOK);
   doc.save('Cifras' + (state.date ? ' - ' + state.date.split('-').reverse().join('-') : '') + '.pdf');
-  toast('PDF baixado');
+  /* domingo com repertório publicado pelo administrador: o PDF também vai para a página inicial do site */
+  try{
+    const D = await getSite();
+    if(state.date && (D.publicados || []).includes(state.date) && window.publicaPdfOnline){
+      toast('PDF baixado. Publicando no site…');
+      await window.publicaPdfOnline(state.date, doc.output('datauristring').split(',')[1]);
+      toast('PDF baixado e publicado na página inicial do site');
+    } else toast('PDF baixado');
+  }catch(e){ toast('PDF baixado (não consegui publicar no site agora)'); }
 };
 
 /* ---------- botão "Enviar para o Montador" ---------- */

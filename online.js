@@ -1,32 +1,87 @@
-/* Junta ao site os repertórios que os administradores salvaram no painel (Firestore).
-   Se o Firebase ainda não estiver configurado ou a internet falhar, o site usa só os dados fixos. */
-window.carregaRepertoriosOnline = async function (DATA) {
-  const C = (window.LOUVOR_CONFIG || {}).firebase || {};
-  if (!C.projectId || !C.apiKey) return DATA;
-  const url = `https://firestore.googleapis.com/v1/projects/${C.projectId}/databases/(default)/documents/repertorios?pageSize=300&key=${C.apiKey}`;
-  try {
-    const ctrl = new AbortController(); const tm = setTimeout(() => ctrl.abort(), 4000);
-    const r = await fetch(url, { signal: ctrl.signal, cache: 'no-store' }); clearTimeout(tm);
-    if (!r.ok) return DATA;
-    const j = await r.json();
-    const byTitle = {}; (DATA.musicas || []).forEach(m => byTitle[m.t] = m);
-    DATA.repertorios = DATA.repertorios || {}; DATA.semana = DATA.semana || {};
-    for (const doc of (j.documents || [])) {
-      const date = doc.name.split('/').pop();
-      let v; try { v = JSON.parse(doc.fields.json.stringValue); } catch (e) { continue; }
-      if (!v || !Array.isArray(v.cultos)) continue;
-      /* momentos marcados como "Sem música" no painel não aparecem no site */
-      v.cultos = v.cultos.map(c => ({ culto: c.culto, itens: (c.itens || []).filter(i => !i.sem && i.t) })).filter(c => c.itens.length);
-      DATA.repertorios[date] = v.cultos;
-      /* playlist do YouTube montada sozinha com os vídeos das músicas do domingo */
-      const ids = [];
-      v.cultos.forEach(c => c.itens.forEach(i => { const m = byTitle[i.t]; const id = m && (m.yt.match(/[?&]v=([\w-]{6,})/) || [])[1]; if (id && !ids.includes(id)) ids.push(id); }));
-      const old = DATA.semana[date] || {};
-      DATA.semana[date] = {
-        sp: v.sp || old.sp || '',
-        yt: v.yt || (ids.length ? 'https://www.youtube.com/watch_videos?video_ids=' + ids.join(',') : old.yt || '')
-      };
+/* Junta ao site os repertórios que os administradores salvaram no painel (Firestore)
+   e o PDF de cifras gerado no montador para esses domingos.
+   Se o Firebase não estiver configurado ou a internet falhar, o site usa só os dados fixos. */
+(function () {
+  const C = () => (window.LOUVOR_CONFIG || {}).firebase || {};
+  const base = () => `https://firestore.googleapis.com/v1/projects/${C().projectId}/databases/(default)/documents`;
+  const PEDACO = 700000; /* o Firestore aceita até ~1 MB por documento: o PDF vai em pedaços */
+
+  async function getJSON(url, ms) {
+    const ctrl = new AbortController(); const tm = setTimeout(() => ctrl.abort(), ms || 4000);
+    try { const r = await fetch(url, { signal: ctrl.signal, cache: 'no-store' }); return r.ok ? await r.json() : null; }
+    finally { clearTimeout(tm); }
+  }
+
+  window.carregaRepertoriosOnline = async function (DATA) {
+    if (!C().projectId || !C().apiKey) return DATA;
+    const key = '?pageSize=300&key=' + C().apiKey;
+    try {
+      const [j, p] = await Promise.all([getJSON(base() + '/repertorios' + key), getJSON(base() + '/pdfs' + key).catch(() => null)]);
+      if (!j) return DATA;
+      const byTitle = {}; (DATA.musicas || []).forEach(m => byTitle[m.t] = m);
+      DATA.repertorios = DATA.repertorios || {}; DATA.semana = DATA.semana || {}; DATA.cifras = DATA.cifras || {};
+      DATA.publicados = [];
+      for (const doc of (j.documents || [])) {
+        const date = doc.name.split('/').pop();
+        let v; try { v = JSON.parse(doc.fields.json.stringValue); } catch (e) { continue; }
+        if (!v || !Array.isArray(v.cultos)) continue;
+        /* momentos marcados como "Sem música" no painel não aparecem no site */
+        v.cultos = v.cultos.map(c => ({ culto: c.culto, itens: (c.itens || []).filter(i => !i.sem && i.t) })).filter(c => c.itens.length);
+        DATA.repertorios[date] = v.cultos;
+        DATA.publicados.push(date);
+        /* playlist do YouTube montada sozinha com os vídeos das músicas do domingo */
+        const ids = [];
+        v.cultos.forEach(c => c.itens.forEach(i => { const m = byTitle[i.t]; const id = m && (m.yt.match(/[?&]v=([\w-]{6,})/) || [])[1]; if (id && !ids.includes(id)) ids.push(id); }));
+        const old = DATA.semana[date] || {};
+        DATA.semana[date] = {
+          sp: v.sp || old.sp || '',
+          yt: v.yt || (ids.length ? 'https://www.youtube.com/watch_videos?video_ids=' + ids.join(',') : old.yt || '')
+        };
+      }
+      /* PDF de cifras gerado no montador para um domingo publicado */
+      for (const doc of ((p && p.documents) || [])) {
+        const date = doc.name.split('/').pop();
+        const partes = +((doc.fields.partes || {}).integerValue || 0);
+        if (partes > 0 && DATA.publicados.includes(date)) DATA.cifras[date] = { pdf: '#pdf-online=' + date, online: true };
+      }
+    } catch (e) { /* sem internet: segue com os dados fixos */ }
+    return DATA;
+  };
+
+  /* guarda o PDF do montador no Firestore (só para domingos com repertório publicado) */
+  window.publicaPdfOnline = async function (date, base64) {
+    if (!C().projectId || !C().apiKey) throw new Error('sem config');
+    const key = '?key=' + C().apiKey;
+    const n = Math.ceil(base64.length / PEDACO);
+    for (let i = 0; i < n; i++) {
+      const r = await fetch(`${base()}/pdfs/${date}/partes/${i}${key}`, { method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ fields: { d: { stringValue: base64.slice(i * PEDACO, (i + 1) * PEDACO) } } }) });
+      if (!r.ok) throw new Error('parte ' + i + ': ' + r.status);
     }
-  } catch (e) { /* sem internet: segue com os dados fixos */ }
-  return DATA;
-};
+    const r = await fetch(`${base()}/pdfs/${date}${key}`, { method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ fields: { partes: { integerValue: String(n) }, atualizado: { timestampValue: new Date().toISOString() } } }) });
+    if (!r.ok) throw new Error('resumo: ' + r.status);
+    return n;
+  };
+
+  /* clique em "Baixe todas as cifras em PDF" de um PDF guardado online */
+  document.addEventListener('click', async e => {
+    const a = e.target.closest && e.target.closest('a[href^="#pdf-online="]');
+    if (!a) return;
+    e.preventDefault();
+    const date = a.getAttribute('href').split('=')[1];
+    const txt = a.textContent; a.textContent = '⏳ Preparando o PDF…';
+    try {
+      const key = '?key=' + C().apiKey;
+      const meta = await getJSON(`${base()}/pdfs/${date}${key}`, 15000);
+      const n = +meta.fields.partes.integerValue;
+      const partes = await Promise.all([...Array(n).keys()].map(i => getJSON(`${base()}/pdfs/${date}/partes/${i}${key}`, 30000)));
+      const b64 = partes.map(p => p.fields.d.stringValue).join('');
+      const bin = atob(b64); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([u8], { type: 'application/pdf' }));
+      const l = document.createElement('a'); l.href = url; l.download = 'Cifras - ' + date.split('-').reverse().join('-') + '.pdf';
+      document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) { alert('Não consegui baixar o PDF agora. Tente de novo em instantes.'); }
+    a.textContent = txt;
+  }, true);
+})();
