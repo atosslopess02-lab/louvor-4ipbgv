@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Administração da igreja</title>
+<script src="config.js"></script>
+<style>
+:root{--bg:#f3f7f2;--surface:#fff;--ink:#1f2d24;--muted:#5d6f62;--green:#4f7a5c;--soft:#dfeadf;--line:#d6e2d6}
+@media (prefers-color-scheme:dark){:root{--bg:#141b16;--surface:#1c2620;--ink:#e3ece4;--muted:#9db1a2;--green:#8fbf9a;--soft:#24342a;--line:#2e3d33}}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+.bar{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line)}
+.bar h1{font-size:1.05rem;margin:0 auto 0 0}
+main{max-width:920px;margin:0 auto;padding:18px 16px 80px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px}
+h2{margin:0 0 4px;font-size:1.25rem}
+p.lead{margin:0 0 16px;color:var(--muted)}
+label{display:flex;flex-direction:column;gap:4px;font-size:.85rem;color:var(--muted);font-weight:700}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;min-height:42px}
+textarea{min-height:140px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.88rem}
+button,.btn{font:inherit;font-weight:700;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:999px;padding:9px 16px;min-height:42px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+button.primary{background:var(--green);color:#fff;border-color:var(--green)}
+button.small{min-height:32px;padding:4px 10px;font-size:.82rem}
+button.link{background:none;border:0;color:var(--green);padding:0;min-height:0;text-decoration:underline}
+button:disabled{opacity:.55;cursor:default}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.row>label{flex:1;min-width:200px}
+.form{display:grid;gap:12px;max-width:440px}
+.msg{padding:10px 12px;border-radius:8px;background:var(--soft);margin:12px 0 0}
+.msg.err{background:#f9e1df;color:#7a2620}.msg.ok{background:#dff1e4;color:#1d5a32}
+@media (prefers-color-scheme:dark){.msg.err{background:#3b2220;color:#f2b5ae}.msg.ok{background:#1f3a28;color:#b8e6c6}}
+.hint{font-size:.85rem;color:var(--muted)}
+.hidden{display:none!important}
+/* passos */
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 16px;padding:0;list-style:none;counter-reset:s}
+.steps li{counter-increment:s}
+.steps button{border-radius:999px;font-size:.85rem;min-height:36px;padding:6px 12px}
+.steps button::before{content:counter(s);display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--line);color:var(--ink);font-size:.78rem;margin-right:4px}
+.steps button.on{background:var(--green);color:#fff;border-color:var(--green)}
+.steps button.on::before{background:#fff;color:var(--green)}
+.steps button.done::before{content:"✓";background:var(--green);color:#fff}
+.nav{display:flex;justify-content:space-between;gap:10px;margin-top:20px;flex-wrap:wrap}
+/* visual */
+.logo-box{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.logo-prev{width:96px;height:96px;border-radius:14px;border:1px dashed var(--line);display:flex;align-items:center;justify-content:center;background:#fff;overflow:hidden}
+.logo-prev img{max-width:100%;max-height:100%}
+.cores{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.cores button{width:36px;height:36px;min-height:0;padding:0;border-radius:50%;border:3px solid transparent}
+.cores button.sel{border-color:var(--ink)}
+.preview{border-radius:14px;overflow:hidden;border:1px solid var(--line);margin-top:16px}
+.preview .pv-h{display:flex;gap:12px;align-items:center;padding:14px 16px;background:#fff;color:#1f2d24}
+.preview .pv-h img{width:48px;height:48px;object-fit:contain}
+.preview .pv-h b{font-size:1.1rem;display:block}
+.preview .pv-n{padding:8px 16px;display:flex;gap:6px}
+.preview .pv-n span{padding:4px 10px;border-radius:999px;font-size:.8rem;font-weight:700;color:#fff}
+/* liturgia */
+.culto{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+.culto-h{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px}
+.culto-h label{flex:1;min-width:180px}
+.mom{display:flex;gap:6px;align-items:center;margin:6px 0}
+.mom input{flex:1}
+/* músicas */
+.tab-mus{width:100%;border-collapse:collapse;font-size:.88rem}
+.tab-mus th,.tab-mus td{padding:6px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left}
+.tab-mus th{background:var(--soft);position:sticky;top:0}
+.tab-mus input{width:100%;min-height:36px;padding:6px 8px}
+.tab-mus .moms{display:flex;flex-wrap:wrap;gap:4px}
+.tab-mus .moms label{flex-direction:row;align-items:center;gap:3px;font-weight:600;font-size:.75rem;color:var(--ink)}
+.tab-mus .moms input{width:auto;min-height:0}
+.tab-mus .yt{display:flex;gap:4px}
+.mus-wrap{max-height:60vh;overflow:auto;border:1px solid var(--line);border-radius:10px}
+.prog{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:8px}
+.prog i{display:block;height:100%;background:var(--green);width:0}
+.link-final{font-size:1.05rem;word-break:break-all;background:var(--soft);padding:12px;border-radius:10px;margin:10px 0}
+@media (max-width:640px){.tab-mus thead{display:none}.tab-mus tr{display:block;border-bottom:2px solid var(--line);padding:6px 0}.tab-mus td{display:block;border:0}}
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>⛪ Administração da igreja</h1>
+  <span class="hint" id="who"></span>
+  <button type="button" class="hidden" id="sair">Sair</button>
+</div>
+<main>
+
+<div class="card hidden" id="v-login">
+  <h2>Bem-vindo(a)</h2>
+  <p class="lead">Esta área é para administradores gerais convidados. Use o mesmo e-mail que recebeu o convite.</p>
+  <div class="row" style="margin-bottom:14px">
+    <button type="button" class="primary" data-tab="entrar">Entrar</button>
+    <button type="button" data-tab="cadastro">Criar meu cadastro</button>
+  </div>
+  <form class="form" id="f-entrar">
+    <label>E-mail<input type="email" id="le" autocomplete="username" required></label>
+    <label>Senha<input type="password" id="ls" autocomplete="current-password" required minlength="6"></label>
+    <div class="row"><button class="primary" type="submit">Entrar</button><button type="button" class="link" id="esqueci">Esqueci a senha</button></div>
+  </form>
+  <form class="form hidden" id="f-cad">
+    <label>Nome completo<input id="cn" autocomplete="name" required></label>
+    <label>E-mail (o do convite)<input type="email" id="ce" autocomplete="email" required></label>
+    <label>Senha (mínimo 6 caracteres)<input type="password" id="cs" autocomplete="new-password" required minlength="6"></label>
+    <button class="primary" type="submit">Criar cadastro</button>
+  </form>
+  <div id="login-msg"></div>
+</div>
+
+<div class="card hidden" id="v-negado">
+  <h2>Acesso ainda não liberado</h2>
+  <p class="lead">Este e-mail não está na lista de administradores gerais. Fale com o Pr. Atos para liberar.</p>
+</div>
+
+<div id="v-app" class="hidden">
+  <ol class="steps" id="steps">
+    <li><button type="button" data-p="1">Igreja e equipe</button></li>
+    <li><button type="button" data-p="2">Logo e cores</button></li>
+    <li><button type="button" data-p="3">Liturgia</button></li>
+    <li><button type="button" data-p="4">Músicas</button></li>
+    <li><button type="button" data-p="5">Pronto</button></li>
+  </ol>
+
+  <!-- 1 -->
+  <div class="card passo" data-p="1">
+    <h2>1. Igreja e equipe</h2>
+    <p class="lead">Comece pelo nome da sua igreja e da sua equipe. Eles aparecem no topo do site.</p>
+    <div class="row">
+      <label>Nome da igreja<input id="i-igreja" placeholder="Ex.: Igreja Presbiteriana Central"></label>
+      <label>Nome da equipe<input id="i-equipe" placeholder="Ex.: Ministério de Louvor"></label>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <label>Cidade (opcional)<input id="i-cidade" placeholder="Ex.: Governador Valadares – MG"></label>
+      <label>Endereço do site da igreja<input id="i-slug" placeholder="ex.: ipb-central"></label>
+    </div>
+    <p class="hint" id="slug-prev"></p>
+    <div class="nav"><span></span><button type="button" class="primary" data-salvar="1">Salvar e continuar →</button></div>
+    <div class="m"></div>
+  </div>
+
+  <!-- 2 -->
+  <div class="card passo hidden" data-p="2">
+    <h2>2. Logo e cores</h2>
+    <p class="lead">Envie a logo da igreja (PNG ou JPG) e escolha a cor principal do site.</p>
+    <div class="logo-box">
+      <div class="logo-prev" id="logo-prev"><span class="hint">sem logo</span></div>
+      <div>
+        <label>Logo da igreja<input type="file" id="i-logo" accept="image/png,image/jpeg,image/webp,image/svg+xml"></label>
+        <p class="hint">Dica: uma imagem quadrada com fundo transparente fica melhor.</p>
+      </div>
+    </div>
+    <label style="margin-top:16px">Cor principal</label>
+    <div class="row" style="align-items:center">
+      <input type="color" id="i-cor" value="#4f7a5c" style="width:64px;padding:2px">
+      <div class="cores" id="cores"></div>
+    </div>
+    <div class="preview" id="preview">
+      <div class="pv-h"><img id="pv-logo" alt="" class="hidden"><div><b id="pv-equipe">Equipe de Louvor</b><span id="pv-igreja" class="hint"></span></div></div>
+      <div class="pv-n" id="pv-n"><span>Próximo domingo</span><span>Escala</span><span>Repertório</span></div>
+    </div>
+    <div class="nav"><button type="button" data-ir="1">← Voltar</button><button type="button" class="primary" data-salvar="2">Salvar e continuar →</button></div>
+    <div class="m"></div>
+  </div>
+
+  <!-- 3 -->
+  <div class="card passo hidden" data-p="3">
+    <h2>3. Liturgia</h2>
+    <p class="lead">Monte os cultos de domingo e a ordem dos momentos de cada um. Os momentos que você criar aqui também servem para classificar as músicas no próximo passo.</p>
+    <div id="cultos"></div>
+    <button type="button" id="add-culto">+ Adicionar culto</button>
+    <div class="nav"><button type="button" data-ir="2">← Voltar</button><button type="button" class="primary" data-salvar="3">Salvar e continuar →</button></div>
+    <div class="m"></div>
+  </div>
+
+  <!-- 4 -->
+  <div class="card passo hidden" data-p="4">
+    <h2>4. Músicas do repertório</h2>
+    <p class="lead">Envie um PDF com os nomes das músicas e dos artistas (uma música por linha, por exemplo “Bondade de Deus – Isaías Saad”). Você também pode colar a lista. Depois, o site busca o vídeo de cada música no YouTube e você pode trocar pela versão que preferir.</p>
+    <div class="row">
+      <label>PDF com as músicas<input type="file" id="i-pdf" accept="application/pdf"></label>
+      <button type="button" id="toggle-colar">Ou colar a lista</button>
+    </div>
+    <div id="colar-box" class="hidden" style="margin-top:12px">
+      <label>Uma música por linha: Música – Artista<textarea id="i-colar" placeholder="Bondade de Deus – Isaías Saad&#10;Grande é o Senhor – Adhemar de Campos"></textarea></label>
+      <button type="button" id="ler-colar" style="margin-top:8px">Ler lista</button>
+    </div>
+    <div class="m" id="mus-msg"></div>
+    <div class="row" style="margin:14px 0 8px">
+      <button type="button" class="primary" id="buscar-yt">🔎 Buscar vídeos no YouTube</button>
+      <button type="button" id="add-mus">+ Adicionar música</button>
+      <span class="hint" id="mus-cont"></span>
+    </div>
+    <div class="prog hidden" id="prog"><i></i></div>
+    <div class="mus-wrap"><table class="tab-mus"><thead><tr><th style="width:24%">Música</th><th style="width:18%">Artista</th><th>Momentos</th><th style="width:30%">Vídeo no YouTube</th><th></th></tr></thead><tbody id="mus-body"></tbody></table></div>
+    <div class="nav"><button type="button" data-ir="3">← Voltar</button><button type="button" class="primary" data-salvar="4">Salvar e continuar →</button></div>
+    <div class="m"></div>
+  </div>
+
+  <!-- 5 -->
+  <div class="card passo hidden" data-p="5">
+    <h2>5. Pronto!</h2>
+    <p class="lead">O site da sua equipe já está no ar. Compartilhe o endereço com a equipe:</p>
+    <div class="link-final" id="link-final"></div>
+    <div class="row"><button type="button" class="primary" id="copiar-link">🔗 Copiar endereço</button><a class="btn" id="abrir-link" target="_blank">Abrir o site</a></div>
+    <p class="hint" style="margin-top:16px">Você pode voltar aqui quando quiser para trocar a logo, as cores, a liturgia ou as músicas. Tudo é salvo na hora.</p>
+  </div>
+</div>
+
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail, updateProfile, deleteUser } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const CFG = window.LOUVOR_CONFIG || {};
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const msg = (el, t, k = '') => { const e = typeof el === 'string' ? $(el) : el; e.innerHTML = t ? `<div class="msg ${k}">${t}</div>` : ''; };
+const slugify = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+const SITE = location.origin + location.pathname.replace(/[^/]*$/, '');
+const linkIgreja = s => SITE + 'igreja.html?i=' + s;
+
+const app = initializeApp(CFG.firebase);
+const auth = getAuth(app); auth.languageCode = 'pt';
+const db = getFirestore(app);
+
+/* ---------- login / cadastro ---------- */
+$$('[data-tab]').forEach(b => b.onclick = () => {
+  $$('[data-tab]').forEach(x => x.classList.toggle('primary', x === b));
+  $('#f-entrar').classList.toggle('hidden', b.dataset.tab !== 'entrar');
+  $('#f-cad').classList.toggle('hidden', b.dataset.tab !== 'cadastro');
+  msg('#login-msg', '');
+});
+const erroPt = e => ({ 'auth/invalid-credential':'E-mail ou senha incorretos.', 'auth/email-already-in-use':'Este e-mail já tem cadastro. Use “Entrar”.', 'auth/weak-password':'A senha precisa ter pelo menos 6 caracteres.', 'auth/invalid-email':'E-mail inválido.', 'auth/too-many-requests':'Muitas tentativas. Espere alguns minutos.' }[e.code] || ('Não deu certo: ' + (e.code || e.message)));
+$('#f-entrar').onsubmit = async e => { e.preventDefault(); msg('#login-msg', 'Entrando…'); try { await signInWithEmailAndPassword(auth, $('#le').value.trim(), $('#ls').value); msg('#login-msg', ''); } catch (err) { msg('#login-msg', erroPt(err), 'err'); } };
+$('#esqueci').onclick = async () => { const em = $('#le').value.trim(); if (!em) { msg('#login-msg', 'Escreva seu e-mail e toque de novo.', 'err'); return; } try { await sendPasswordResetEmail(auth, em); msg('#login-msg', 'Enviamos um e-mail para criar uma nova senha.', 'ok'); } catch (err) { msg('#login-msg', erroPt(err), 'err'); } };
+$('#f-cad').onsubmit = async e => {
+  e.preventDefault(); msg('#login-msg', 'Criando cadastro…');
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, $('#ce').value.trim().toLowerCase(), $('#cs').value);
+    await updateProfile(cred.user, { displayName: $('#cn').value.trim() });
+    if (!(await liberado(cred.user))) { await deleteUser(cred.user).catch(() => signOut(auth)); msg('#login-msg', 'Este e-mail não está na lista de convidados. Use o e-mail que recebeu o convite.', 'err'); return; }
+    msg('#login-msg', '');
+    entrou(cred.user);
+  } catch (err) { msg('#login-msg', erroPt(err), 'err'); }
+};
+$('#sair').onclick = () => signOut(auth);
+async function liberado(u) { try { return (await getDoc(doc(db, 'admins_gerais', (u.email || '').toLowerCase()))).exists(); } catch (e) { return false; } }
+
+onAuthStateChanged(auth, u => entrou(u));
+async function entrou(u) {
+  ['v-login', 'v-negado', 'v-app'].forEach(id => $('#' + id).classList.add('hidden'));
+  $('#sair').classList.toggle('hidden', !u); $('#who').textContent = u ? (u.displayName || u.email) : '';
+  if (!u) { $('#v-login').classList.remove('hidden'); return; }
+  if (!(await liberado(u))) { $('#v-negado').classList.remove('hidden'); return; }
+  $('#v-app').classList.remove('hidden');
+  await carregaIgreja(u);
+}
+
+/* ---------- dados da igreja ---------- */
+const LITURGIA_PADRAO = [
+  { nome: 'Manhã', momentos: ['Hino', 'Música nova'] },
+  { nome: 'Noite', momentos: ['Prelúdio', 'Adoração', 'Confissão', 'Louvor', 'Louvor', 'Pós-pregação', 'Tríplice Amém'] }
+];
+const CORES = ['#4f7a5c', '#2f5d8a', '#6b3fa0', '#a3413b', '#b8742a', '#1f7a7a', '#3a3a3a', '#8a2f5d'];
+let G = { slug: '', igreja: '', equipe: 'Equipe de Louvor', cidade: '', logo: '', cor: '#4f7a5c', liturgia: LITURGIA_PADRAO, existe: false };
+let MUS = [];
+
+async function carregaIgreja(u) {
+  const em = u.email.toLowerCase();
+  try {
+    const q = await getDocs(query(collection(db, 'igrejas'), where('dono', '==', em)));
+    if (!q.empty) {
+      const d = q.docs[0]; G = { ...G, ...d.data(), slug: d.id, existe: true };
+      const m = await getDoc(doc(db, 'igrejas', d.id, 'dados', 'musicas'));
+      MUS = m.exists() ? (m.data().lista || []) : [];
+    }
+  } catch (e) { console.warn(e); }
+  preenche();
+  vaiPara(G.existe ? (MUS.length ? 5 : 4) : 1);
+}
+function preenche() {
+  $('#i-igreja').value = G.igreja || ''; $('#i-equipe').value = G.equipe || ''; $('#i-cidade').value = G.cidade || '';
+  $('#i-slug').value = G.slug || ''; $('#i-slug').disabled = G.existe; mostraSlug();
+  $('#i-cor').value = G.cor || '#4f7a5c'; desenhaCores(); desenhaLogo(); preview();
+  desenhaCultos(); desenhaMus();
+  $('#link-final').textContent = G.slug ? linkIgreja(G.slug) : ''; $('#abrir-link').href = G.slug ? linkIgreja(G.slug) : '#';
+}
+async function salvaIgreja(extra) {
+  const u = auth.currentUser;
+  const dados = { igreja: G.igreja, equipe: G.equipe, cidade: G.cidade, cor: G.cor, logo: G.logo || '', liturgia: G.liturgia, dono: u.email.toLowerCase(), atualizado: serverTimestamp(), ...(extra || {}) };
+  if (!G.existe) dados.criado = serverTimestamp();
+  await setDoc(doc(db, 'igrejas', G.slug), dados, { merge: true });
+  G.existe = true; $('#i-slug').disabled = true;
+}
+
+/* ---------- navegação entre passos ---------- */
+let passo = 1;
+function vaiPara(n) {
+  passo = n;
+  $$('.passo').forEach(p => p.classList.toggle('hidden', +p.dataset.p !== n));
+  $$('#steps button').forEach(b => { b.classList.toggle('on', +b.dataset.p === n); b.classList.toggle('done', G.existe && +b.dataset.p < n); });
+  scrollTo({ top: 0, behavior: 'smooth' });
+}
+$$('#steps button').forEach(b => b.onclick = () => { if (!G.existe && +b.dataset.p > 1) { msg($('.passo[data-p="1"] .m'), 'Salve o passo 1 primeiro.', 'err'); return; } vaiPara(+b.dataset.p); });
+$$('[data-ir]').forEach(b => b.onclick = () => vaiPara(+b.dataset.ir));
+$$('[data-salvar]').forEach(b => b.onclick = async () => {
+  const n = +b.dataset.salvar, m = $(`.passo[data-p="${n}"] .m:last-child`);
+  b.disabled = true; msg(m, 'Salvando…');
+  try {
+    if (n === 1) {
+      G.igreja = $('#i-igreja').value.trim(); G.equipe = $('#i-equipe').value.trim() || 'Equipe de Louvor'; G.cidade = $('#i-cidade').value.trim();
+      if (!G.existe) G.slug = slugify($('#i-slug').value || G.igreja);
+      if (!G.igreja || G.slug.length < 3) throw new Error('Preencha o nome da igreja e o endereço do site.');
+      if (!G.existe && (await getDoc(doc(db, 'igrejas', G.slug))).exists()) throw new Error('Esse endereço já está em uso. Escolha outro.');
+      await salvaIgreja(); preenche();
+    }
+    if (n === 2) await salvaIgreja();
+    if (n === 3) { lerCultos(); if (!G.liturgia.length) throw new Error('Crie pelo menos um culto.'); await salvaIgreja(); desenhaMus(); }
+    if (n === 4) { lerMus(); await setDoc(doc(db, 'igrejas', G.slug, 'dados', 'musicas'), { lista: MUS, atualizado: serverTimestamp() }); }
+    msg(m, ''); vaiPara(n + 1);
+  } catch (e) { msg(m, esc(e.message || e.code), 'err'); }
+  b.disabled = false;
+});
+
+/* passo 1 */
+function mostraSlug() { const s = G.existe ? G.slug : slugify($('#i-slug').value || $('#i-igreja').value); $('#slug-prev').innerHTML = s ? `O site da equipe vai ficar em: <b>${esc(linkIgreja(s))}</b>${G.existe ? ' (o endereço não muda depois de criado)' : ''}` : ''; }
+$('#i-igreja').oninput = () => { mostraSlug(); preview(); };
+$('#i-slug').oninput = mostraSlug;
+$('#i-equipe').oninput = preview;
+
+/* passo 2 */
+function desenhaCores() { $('#cores').innerHTML = CORES.map(c => `<button type="button" style="background:${c}" data-c="${c}" class="${c === G.cor ? 'sel' : ''}" aria-label="Cor ${c}"></button>`).join(''); $$('#cores button').forEach(b => b.onclick = () => { G.cor = b.dataset.c; $('#i-cor').value = G.cor; desenhaCores(); preview(); }); }
+$('#i-cor').oninput = e => { G.cor = e.target.value; desenhaCores(); preview(); };
+function desenhaLogo() { $('#logo-prev').innerHTML = G.logo ? `<img src="${G.logo}" alt="Logo">` : '<span class="hint">sem logo</span>'; }
+$('#i-logo').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  const url = URL.createObjectURL(f); const img = new Image();
+  img.onload = () => {
+    const max = 320, k = Math.min(1, max / Math.max(img.width, img.height));
+    const c = document.createElement('canvas'); c.width = Math.round(img.width * k) || max; c.height = Math.round(img.height * k) || max;
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    G.logo = c.toDataURL('image/png'); if (G.logo.length > 600000) G.logo = c.toDataURL('image/jpeg', .85);
+    desenhaLogo(); preview(); URL.revokeObjectURL(url);
+  };
+  img.src = url;
+};
+function preview() {
+  $('#pv-equipe').textContent = $('#i-equipe').value || G.equipe || 'Equipe de Louvor';
+  $('#pv-igreja').textContent = $('#i-igreja').value || G.igreja || '';
+  $('#pv-logo').classList.toggle('hidden', !G.logo); if (G.logo) $('#pv-logo').src = G.logo;
+  $$('#pv-n span').forEach(s => s.style.background = G.cor);
+  $('#preview').style.borderTop = `6px solid ${G.cor}`;
+}
+
+/* passo 3: liturgia */
+function desenhaCultos() {
+  $('#cultos').innerHTML = G.liturgia.map((c, i) => `
+    <div class="culto" data-c="${i}">
+      <div class="culto-h"><label>Nome do culto<input class="c-nome" value="${esc(c.nome)}" placeholder="Ex.: Manhã"></label>
+        <button type="button" class="small" data-del-culto="${i}">Remover culto</button></div>
+      ${c.momentos.map((m, j) => `<div class="mom"><span class="hint">${j + 1}.</span><input class="c-mom" value="${esc(m)}" placeholder="Momento">
+        <button type="button" class="small" data-up="${i}:${j}" aria-label="Subir">↑</button><button type="button" class="small" data-down="${i}:${j}" aria-label="Descer">↓</button><button type="button" class="small" data-del="${i}:${j}" aria-label="Remover">✕</button></div>`).join('')}
+      <button type="button" class="small" data-add-mom="${i}">+ Momento</button>
+    </div>`).join('');
+  $$('[data-del-culto]').forEach(b => b.onclick = () => { lerCultos(); G.liturgia.splice(+b.dataset.delCulto, 1); desenhaCultos(); });
+  $$('[data-add-mom]').forEach(b => b.onclick = () => { lerCultos(); G.liturgia[+b.dataset.addMom].momentos.push(''); desenhaCultos(); });
+  const mexe = (attr, f) => $$(`[data-${attr}]`).forEach(b => b.onclick = () => { lerCultos(); const [i, j] = b.dataset[attr].split(':').map(Number); f(G.liturgia[i].momentos, j); desenhaCultos(); });
+  mexe('del', (a, j) => a.splice(j, 1));
+  mexe('up', (a, j) => { if (j > 0) [a[j - 1], a[j]] = [a[j], a[j - 1]]; });
+  mexe('down', (a, j) => { if (j < a.length - 1) [a[j + 1], a[j]] = [a[j], a[j + 1]]; });
+}
+function lerCultos() {
+  G.liturgia = $$('#cultos .culto').map(c => ({ nome: c.querySelector('.c-nome').value.trim() || 'Culto', momentos: [...c.querySelectorAll('.c-mom')].map(x => x.value.trim()).filter(Boolean) }));
+}
+$('#add-culto').onclick = () => { lerCultos(); G.liturgia.push({ nome: '', momentos: ['Louvor'] }); desenhaCultos(); };
+
+/* passo 4: músicas */
+const momentosUnicos = () => [...new Set(G.liturgia.flatMap(c => c.momentos))].filter(m => !/am[eé]m/i.test(m));
+const ytId = u => (String(u || '').match(/(?:v=|youtu\.be\/|embed\/)([\w-]{11})/) || [])[1] || '';
+const ccBusca = (t, a) => 'https://www.cifraclub.com.br/?q=' + encodeURIComponent(t + ' ' + (a || ''));
+function desenhaMus() {
+  const moms = momentosUnicos();
+  $('#mus-body').innerHTML = MUS.map((m, i) => `<tr data-i="${i}">
+    <td><input class="m-t" value="${esc(m.t)}" placeholder="Música"></td>
+    <td><input class="m-a" value="${esc(m.art)}" placeholder="Artista"></td>
+    <td><div class="moms">${moms.map(x => `<label><input type="checkbox" class="m-m" value="${esc(x)}"${(m.m || []).includes(x) ? ' checked' : ''}>${esc(x)}</label>`).join('')}</div></td>
+    <td><div class="yt"><input class="m-y" value="${esc(m.yt)}" placeholder="Link do vídeo"><a class="btn small" style="min-height:32px;padding:4px 8px" target="_blank" href="${m.yt ? esc(m.yt) : 'https://www.youtube.com/results?search_query=' + encodeURIComponent(m.t + ' ' + (m.art || ''))}" title="${m.yt ? 'Ver vídeo' : 'Buscar no YouTube'}">${m.yt ? '▶' : '🔎'}</a></div></td>
+    <td><button type="button" class="small" data-rm="${i}" aria-label="Remover">✕</button></td></tr>`).join('') || '<tr><td colspan="5" class="hint" style="padding:16px">Nenhuma música ainda. Envie o PDF, cole a lista ou adicione uma por uma.</td></tr>';
+  $$('[data-rm]').forEach(b => b.onclick = () => { lerMus(); MUS.splice(+b.dataset.rm, 1); desenhaMus(); });
+  const semVideo = MUS.filter(m => !m.yt).length;
+  $('#mus-cont').textContent = MUS.length ? `${MUS.length} músicas · ${semVideo} sem vídeo` : '';
+}
+function lerMus() {
+  MUS = $$('#mus-body tr[data-i]').map(tr => {
+    const t = tr.querySelector('.m-t').value.trim(), art = tr.querySelector('.m-a').value.trim(), yt = tr.querySelector('.m-y').value.trim();
+    return { t, art, yt, cc: ccBusca(t, art), m: [...tr.querySelectorAll('.m-m:checked')].map(x => x.value) };
+  }).filter(m => m.t);
+}
+$('#add-mus').onclick = () => { lerMus(); MUS.unshift({ t: '', art: '', yt: '', m: [] }); desenhaMus(); $('#mus-body .m-t').focus(); };
+$('#toggle-colar').onclick = () => $('#colar-box').classList.toggle('hidden');
+$('#ler-colar').onclick = () => juntaLinhas($('#i-colar').value.split('\n'));
+
+/* lê o PDF linha por linha (pdf.js) */
+$('#i-pdf').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  msg('#mus-msg', 'Lendo o PDF…');
+  try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise;
+    const linhas = [];
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const items = (await (await pdf.getPage(p)).getTextContent()).items.filter(i => i.str.trim());
+      const porY = {};
+      items.forEach(i => { const y = Math.round(i.transform[5] / 3); (porY[y] = porY[y] || []).push(i); });
+      Object.keys(porY).sort((a, b) => b - a).forEach(y => {
+        const its = porY[y].sort((a, b) => a.transform[4] - b.transform[4]);
+        let s = '', fim = null;
+        its.forEach(i => { const x = i.transform[4]; if (fim !== null && x - fim > 18) s += ' | '; else if (fim !== null && x - fim > 1) s += ' '; s += i.str; fim = x + (i.width || 0); });
+        linhas.push(s);
+      });
+    }
+    juntaLinhas(linhas);
+  } catch (err) { msg('#mus-msg', 'Não consegui ler esse PDF. Tente colar a lista.', 'err'); }
+  e.target.value = '';
+};
+function juntaLinhas(linhas) {
+  lerMus();
+  const ja = new Set(MUS.map(m => slugify(m.t)));
+  let novas = 0;
+  linhas.forEach(l => {
+    let s = String(l).replace(/\s+/g, ' ').trim().replace(/^\d{1,3}\s*[.)\-–]\s*/, '');
+    if (s.length < 2 || /^(m[uú]sicas?|t[ií]tulo|artista|cantor|repert[oó]rio|p[aá]gina \d+)\b/i.test(s)) return;
+    const partes = s.split(/\s+[|–—-]\s+|\s*\|\s*|\t/).map(x => x.trim()).filter(Boolean);
+    const t = partes[0], art = partes[1] || '';
+    if (!t || ja.has(slugify(t))) return;
+    ja.add(slugify(t)); MUS.push({ t, art, yt: '', m: [] }); novas++;
+  });
+  MUS.sort((a, b) => a.t.localeCompare(b.t, 'pt'));
+  desenhaMus();
+  msg('#mus-msg', novas ? `${novas} músicas adicionadas. Confira a lista, marque os momentos e toque em “Buscar vídeos no YouTube”.` : 'Não encontrei músicas novas nessa lista.', novas ? 'ok' : 'err');
+}
+
+/* busca automática no YouTube (YouTube Data API) */
+$('#buscar-yt').onclick = async () => {
+  lerMus();
+  const key = CFG.youtubeKey;
+  if (!key) { msg('#mus-msg', 'A busca automática ainda não está ativada. Use o botão 🔎 de cada música.', 'err'); return; }
+  const faltam = MUS.filter(m => !m.yt && m.t);
+  if (!faltam.length) { msg('#mus-msg', 'Todas as músicas já têm vídeo.', 'ok'); return; }
+  const b = $('#buscar-yt'); b.disabled = true; $('#prog').classList.remove('hidden');
+  let ok = 0, n = 0;
+  for (const m of faltam) {
+    try {
+      const r = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=${encodeURIComponent(m.t + ' ' + m.art)}&key=${key}`);
+      if (r.status === 403) { msg('#mus-msg', 'O limite diário de buscas do YouTube acabou. Tente de novo amanhã para as músicas que faltam.', 'err'); break; }
+      const j = await r.json(); const id = j.items && j.items[0] && j.items[0].id.videoId;
+      if (id) { m.yt = 'https://www.youtube.com/watch?v=' + id; ok++; }
+    } catch (e) {}
+    n++; $('#prog i').style.width = (100 * n / faltam.length) + '%';
+  }
+  desenhaMus(); b.disabled = false; setTimeout(() => $('#prog').classList.add('hidden'), 800);
+  if (ok) msg('#mus-msg', `Encontrei ${ok} vídeo(s). Toque em ▶ para conferir e cole outro link se preferir outra versão. Não esqueça de salvar.`, 'ok');
+};
+
+/* passo 5 */
+$('#copiar-link').onclick = async () => { try { await navigator.clipboard.writeText(linkIgreja(G.slug)); $('#copiar-link').textContent = '✅ Copiado'; } catch (e) { prompt('Copie o endereço:', linkIgreja(G.slug)); } };
+</script>
+</body>
+</html>

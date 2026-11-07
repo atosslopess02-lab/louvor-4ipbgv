@@ -152,18 +152,26 @@ table.r th{background:var(--soft)}
   <div id="q-resp"><p class="hint">Salve o questionário para começar a receber respostas.</p></div>
 </div>
 
+<div class="card hidden" id="v-gerais">
+  <h2>Administradores gerais (só você vê)</h2>
+  <p class="lead">E-mails liberados para criar o site da própria igreja na página oculta <a href="geral.html" target="_blank">geral.html</a>.</p>
+  <div class="row"><label style="flex:1;min-width:200px">Nome<input id="g-nome"></label><label style="flex:1;min-width:220px">E-mail<input type="email" id="g-email"></label><button type="button" class="primary" id="g-add">Liberar</button></div>
+  <div id="g-msg"></div>
+  <div id="g-lista" style="margin-top:12px"></div>
+</div>
+
 </main>
 <datalist id="dl-todas"></datalist><datalist id="dl-A"></datalist><datalist id="dl-C"></datalist><datalist id="dl-L"></datalist>
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendEmailVerification, sendPasswordResetEmail, updateProfile } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const CFG = window.LOUVOR_CONFIG || {};
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const show = (...ids) => { ['v-config','v-login','v-espera','v-verificar','v-aprov','v-rep','v-quest'].forEach(id => $('#'+id).classList.toggle('hidden', !ids.includes(id))); };
+const show = (...ids) => { ['v-config','v-login','v-espera','v-verificar','v-aprov','v-rep','v-quest','v-gerais'].forEach(id => $('#'+id).classList.toggle('hidden', !ids.includes(id))); };
 const msg = (el, text, kind='') => { $(el).innerHTML = text ? `<div class="msg ${kind}">${text}</div>` : ''; };
 const DONO = String(CFG.dono || '').toLowerCase();
 const SITE = location.origin + location.pathname.replace(/[^/]*$/, '');
@@ -239,9 +247,9 @@ async function entrouComo(u) {
   const ehDono = (u.email || '').toLowerCase() === DONO;
   if (ehDono) {
     if (!u.emailVerified) { $('#ver-email').textContent = u.email; show('v-verificar'); return; }
-    show('v-aprov', 'v-rep', 'v-quest');
+    show('v-aprov', 'v-rep', 'v-quest', 'v-gerais');
     await carregaPendentes();
-    iniciaEditor(); iniciaQuest();
+    iniciaEditor(); iniciaQuest(); carregaGerais();
     return;
   }
   let aprovado = false;
@@ -486,6 +494,23 @@ async function carregaRespostas(mes) {
       <p>${faltam.map(m => esc(m.nome)).join(', ') || '<span class="hint">Todos os cadastrados já responderam.</span>'}</p>`;
   } catch (e) { $('#q-resp').innerHTML = '<p class="hint">Não consegui ler as respostas (' + esc(e.code || e.message) + ').</p>'; }
 }
+/* ---------- administradores gerais (só o dono) ---------- */
+async function carregaGerais() {
+  try {
+    const q = await getDocs(collection(db, 'admins_gerais'));
+    const igs = await getDocs(collection(db, 'igrejas'));
+    const igDe = {}; igs.docs.forEach(d => igDe[d.data().dono] = d.id);
+    $('#g-lista').innerHTML = q.empty ? '<p class="hint">Ninguém liberado ainda.</p>' :
+      '<table class="r"><thead><tr><th>Nome</th><th>E-mail</th><th>Site da igreja</th><th></th></tr></thead><tbody>' + q.docs.map(d => `<tr><td>${esc(d.data().nome)}</td><td>${esc(d.id)}</td><td>${igDe[d.id] ? `<a href="igreja.html?i=${igDe[d.id]}" target="_blank">${igDe[d.id]}</a>` : '<span class="hint">ainda não criou</span>'}</td><td><button type="button" class="link" data-tira="${esc(d.id)}">remover</button></td></tr>`).join('') + '</tbody></table>';
+    $('#g-lista').querySelectorAll('[data-tira]').forEach(b => b.onclick = async () => { if (!confirm('Remover o acesso de ' + b.dataset.tira + '?')) return; await deleteDoc(doc(db, 'admins_gerais', b.dataset.tira)); carregaGerais(); });
+  } catch (e) { $('#g-lista').innerHTML = '<p class="hint">Não consegui ler a lista (' + esc(e.code || e.message) + ').</p>'; }
+}
+$('#g-add').onclick = async () => {
+  const email = $('#g-email').value.trim().toLowerCase(), nome = $('#g-nome').value.trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { msg('#g-msg', 'E-mail inválido.', 'err'); return; }
+  try { await setDoc(doc(db, 'admins_gerais', email), { email, nome, adicionado: serverTimestamp() }); msg('#g-msg', `✅ ${esc(email)} liberado. Envie o link: ${esc(SITE + 'geral.html')}`, 'ok'); $('#g-email').value = ''; $('#g-nome').value = ''; carregaGerais(); }
+  catch (e) { msg('#g-msg', 'Não consegui liberar: ' + esc(e.code || e.message), 'err'); }
+};
 </script>
 </body>
 </html>

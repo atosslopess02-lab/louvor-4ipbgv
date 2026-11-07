@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Equipe de Louvor</title>
+<script src="config.js"></script>
+<style>
+:root{--bg:#f4f6f5;--surface:#fff;--ink:#1f2a24;--muted:#5f6b64;--cor:#4f7a5c;--line:#dde3df}
+@media (prefers-color-scheme:dark){:root{--bg:#141816;--surface:#1d2320;--ink:#e6ece8;--muted:#9fb0a6;--line:#2f3833}}
+:root{--soft:color-mix(in srgb,var(--cor) 14%,var(--surface))}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+a{color:var(--cor)}
+.wrap{max-width:1040px;margin:0 auto;padding:0 18px}
+header{background:var(--surface);border-top:6px solid var(--cor);border-bottom:1px solid var(--line)}
+header .wrap{display:flex;gap:16px;align-items:center;padding-top:20px;padding-bottom:20px}
+header img{width:64px;height:64px;object-fit:contain;flex:none}
+header h1{margin:0;font-size:clamp(1.4rem,3.4vw,2rem);line-height:1.15}
+header p{margin:2px 0 0;color:var(--muted)}
+nav{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;gap:6px;overflow-x:auto;padding-top:8px;padding-bottom:8px}
+nav a{white-space:nowrap;text-decoration:none;color:var(--ink);font-weight:700;font-size:.92rem;padding:7px 12px;border-radius:999px}
+nav a:hover{background:var(--soft)}
+section{padding:30px 0 6px}
+h2{margin:0 0 4px;font-size:1.45rem}
+.lead{color:var(--muted);margin:0 0 16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.eyebrow{font-size:.78rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--cor)}
+ol.lit{margin:8px 0 0;padding-left:22px}
+ol.lit li{padding:2px 0}
+.tools{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.tools input,.tools select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:9px 14px;min-height:42px}
+.tools input{flex:1;min-width:220px}
+table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--soft);font-size:.85rem}
+td .art{color:var(--muted);font-size:.88rem}
+.tag{display:inline-block;background:var(--soft);color:var(--ink);border-radius:999px;padding:1px 9px;margin:1px 2px;font-size:.78rem;font-weight:700}
+.lk a{font-weight:700;margin-right:10px;white-space:nowrap}
+.empty{color:var(--muted)}
+footer{color:var(--muted);font-size:.85rem;padding:30px 0 40px;text-align:center}
+.erro{padding:60px 0;text-align:center}
+@media (max-width:640px){thead{display:none}tr{display:block;border-bottom:1px solid var(--line);padding:8px 4px}td{display:block;border:0;padding:3px 8px}}
+</style>
+</head>
+<body>
+<div id="app"><div class="wrap erro"><p class="empty">Carregando…</p></div></div>
+<script>
+(async () => {
+  const C = (window.LOUVOR_CONFIG || {}).firebase || {};
+  const slug = new URLSearchParams(location.search).get('i') || '';
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const app = document.getElementById('app');
+  const base = `https://firestore.googleapis.com/v1/projects/${C.projectId}/databases/(default)/documents/igrejas/${encodeURIComponent(slug)}`;
+  /* converte o formato do Firestore REST em objeto comum */
+  const val = v => v.stringValue ?? v.integerValue ?? v.booleanValue ?? (v.arrayValue ? (v.arrayValue.values || []).map(val) : v.mapValue ? obj(v.mapValue.fields || {}) : null);
+  const obj = f => Object.fromEntries(Object.entries(f).map(([k, v]) => [k, val(v)]));
+  let G, MUS = [];
+  try {
+    const [g, m] = await Promise.all([fetch(`${base}?key=${C.apiKey}`), fetch(`${base}/dados/musicas?key=${C.apiKey}`)]);
+    if (!slug || !g.ok) throw 0;
+    G = obj((await g.json()).fields);
+    if (m.ok) MUS = obj((await m.json()).fields || {}).lista || [];
+  } catch (e) {
+    app.innerHTML = '<div class="wrap erro"><h2>Igreja não encontrada</h2><p class="empty">Confira o endereço que você recebeu.</p></div>'; return;
+  }
+  document.documentElement.style.setProperty('--cor', G.cor || '#4f7a5c');
+  document.title = (G.equipe || 'Equipe de Louvor') + ' · ' + (G.igreja || '');
+  MUS.sort((a, b) => a.t.localeCompare(b.t, 'pt'));
+  const momentos = [...new Set((G.liturgia || []).flatMap(c => c.momentos))].filter(m => !/am[eé]m/i.test(m));
+  app.innerHTML = `
+  <header><div class="wrap">${G.logo ? `<img src="${G.logo}" alt="Logo da ${esc(G.igreja)}">` : ''}
+    <div><h1>${esc(G.equipe || 'Equipe de Louvor')}</h1><p>${esc(G.igreja)}${G.cidade ? ' · ' + esc(G.cidade) : ''}</p></div></div></header>
+  <nav><div class="wrap"><a href="#domingo">Próximo domingo</a><a href="#liturgia">Liturgia</a><a href="#repertorio">Repertório</a></div></nav>
+  <main class="wrap">
+    <section id="domingo"><h2>Próximo domingo</h2>
+      <div class="card"><div class="eyebrow">Em breve</div><p style="margin:.3em 0 0">O repertório de cada domingo, a escala da equipe e o montador de cifras vão aparecer aqui.</p></div></section>
+    <section id="liturgia"><h2>Liturgia</h2><p class="lead">A ordem dos momentos em cada culto de domingo.</p>
+      <div class="grid">${(G.liturgia || []).map(c => `<div class="card"><div class="eyebrow">${esc(c.nome)}</div><ol class="lit">${c.momentos.map(m => `<li>${esc(m)}</li>`).join('')}</ol></div>`).join('')}</div></section>
+    <section id="repertorio"><h2>Repertório</h2><p class="lead">Busque pelo nome ou artista e filtre pelo momento do culto. Cada música tem o vídeo de referência e a cifra.</p>
+      <div class="tools"><input id="q" type="search" placeholder="Buscar música ou artista" aria-label="Buscar música ou artista">
+        <select id="fm" aria-label="Filtrar por momento"><option value="">Todos os momentos</option>${momentos.map(m => `<option>${esc(m)}</option>`).join('')}</select></div>
+      <p class="empty" id="cont"></p>
+      <table><thead><tr><th>Música</th><th>Momentos</th><th>Links</th></tr></thead><tbody id="tb"></tbody></table></section>
+  </main>
+  <footer>${esc(G.equipe || 'Equipe de Louvor')} · ${esc(G.igreja)}</footer>`;
+  const desenha = () => {
+    const q = norm(document.getElementById('q').value), fm = document.getElementById('fm').value;
+    const rows = MUS.filter(m => (!q || norm(m.t + ' ' + m.art).includes(q)) && (!fm || (m.m || []).includes(fm)));
+    document.getElementById('cont').textContent = `${rows.length} de ${MUS.length} músicas`;
+    document.getElementById('tb').innerHTML = rows.map(m => `<tr><td><b>${esc(m.t)}</b><div class="art">${esc(m.art)}</div></td>
+      <td>${(m.m || []).map(x => `<span class="tag">${esc(x)}</span>`).join('')}</td>
+      <td class="lk">${m.yt ? `<a href="${esc(m.yt)}" target="_blank" rel="noopener">▶️ YouTube</a>` : ''}<a href="${esc(m.cc || ('https://www.cifraclub.com.br/?q=' + encodeURIComponent(m.t + ' ' + (m.art || ''))))}" target="_blank" rel="noopener">🎸 Cifra</a></td></tr>`).join('')
+      || '<tr><td colspan="3" class="empty">Nenhuma música encontrada.</td></tr>';
+  };
+  document.getElementById('q').oninput = desenha; document.getElementById('fm').onchange = desenha; desenha();
+})();
+</script>
+</body>
+</html>

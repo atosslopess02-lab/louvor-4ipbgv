@@ -9,6 +9,8 @@ window.LOUVOR_CONFIG = {
     projectId: 'louvor-4ipbgv',
     appId: '1:221030750557:web:c17bbb4eb70746a48230b4'
   },
+  /* chave da busca de vídeos no YouTube (só funciona a partir do site, restrita ao YouTube Data API) */
+  youtubeKey: 'AIzaSyArvWXBHRmzInqvGraAG57wEkij2gG77ww',
   emailjs: {
     publicKey: '',
     serviceId: '',
