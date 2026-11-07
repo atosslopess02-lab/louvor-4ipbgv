@@ -44,6 +44,14 @@ button:disabled{opacity:.6;cursor:default}
 .pend{display:flex;gap:10px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding:8px 0}
 .hidden{display:none!important}
 .who{font-size:.85rem;color:var(--muted)}
+h3.sub{margin:18px 0 8px;font-size:.95rem;color:var(--green)}
+.qd{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line)}
+.qd input[type=checkbox]{width:20px;height:20px;min-height:0;accent-color:var(--green)}
+.qd .dt{min-width:150px;font-weight:700}.qd input.rot{flex:1;min-width:160px}
+table.r{width:100%;border-collapse:collapse;font-size:.9rem;margin-top:6px}
+table.r th,table.r td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+table.r th{background:var(--soft)}
+.tag{display:inline-block;background:var(--soft);border-radius:999px;padding:1px 8px;margin:1px 2px;font-size:.8rem}
 </style>
 </head>
 <body>
@@ -119,18 +127,43 @@ button:disabled{opacity:.6;cursor:default}
   <p class="hint">Toque no campo da música para ver a lista do momento. Os hinos do Novo Cântico aparecem como “Hino 113 – Achei um Bom Amigo”.</p>
 </div>
 
+<div class="card hidden" id="v-quest">
+  <h2>Questionário da escala</h2>
+  <p class="lead">Monte aqui o questionário de disponibilidade do próximo mês. A equipe responde na página <a href="escala.html" target="_blank">Disponibilidade para a escala</a>, só no período escolhido. Para responder, cada pessoa faz um cadastro simples com o nome completo.</p>
+  <div class="row">
+    <label>Mês da escala<input type="month" id="q-mes"></label>
+    <label>Abre em<input type="date" id="q-abre"></label>
+    <label>Fecha em<input type="date" id="q-fecha"></label>
+  </div>
+  <h3 class="sub">Dias da escala</h3>
+  <div id="q-datas"></div>
+  <div class="row" style="margin-top:8px">
+    <label>Data extra<input type="date" id="q-extra"></label>
+    <label style="flex:1;min-width:180px">Descrição<input id="q-extra-rot" placeholder="Ex.: Culto de Ano Novo"></label>
+    <button type="button" id="q-add">+ Adicionar data</button>
+  </div>
+  <label style="margin-top:14px">Funções (separadas por vírgula)<input id="q-funcoes"></label>
+  <div class="row" style="margin-top:16px">
+    <button type="button" class="primary" id="q-salvar">💾 Salvar questionário</button>
+    <button type="button" id="q-copiar">🔗 Copiar link para o grupo</button>
+  </div>
+  <div id="q-msg"></div>
+  <h3 class="sub">Respostas <button type="button" class="link" id="q-atualizar" style="font-size:.85rem">atualizar</button></h3>
+  <div id="q-resp"><p class="hint">Salve o questionário para começar a receber respostas.</p></div>
+</div>
+
 </main>
 <datalist id="dl-todas"></datalist><datalist id="dl-A"></datalist><datalist id="dl-C"></datalist><datalist id="dl-L"></datalist>
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendEmailVerification, sendPasswordResetEmail, updateProfile } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, serverTimestamp, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const CFG = window.LOUVOR_CONFIG || {};
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const show = (...ids) => { ['v-config','v-login','v-espera','v-verificar','v-aprov','v-rep'].forEach(id => $('#'+id).classList.toggle('hidden', !ids.includes(id))); };
+const show = (...ids) => { ['v-config','v-login','v-espera','v-verificar','v-aprov','v-rep','v-quest'].forEach(id => $('#'+id).classList.toggle('hidden', !ids.includes(id))); };
 const msg = (el, text, kind='') => { $(el).innerHTML = text ? `<div class="msg ${kind}">${text}</div>` : ''; };
 const DONO = String(CFG.dono || '').toLowerCase();
 const SITE = location.origin + location.pathname.replace(/[^/]*$/, '');
@@ -206,15 +239,15 @@ async function entrouComo(u) {
   const ehDono = (u.email || '').toLowerCase() === DONO;
   if (ehDono) {
     if (!u.emailVerified) { $('#ver-email').textContent = u.email; show('v-verificar'); return; }
-    show('v-aprov', 'v-rep');
+    show('v-aprov', 'v-rep', 'v-quest');
     await carregaPendentes();
-    iniciaEditor();
+    iniciaEditor(); iniciaQuest();
     return;
   }
   let aprovado = false;
   try { const s = await getDoc(doc(db, 'usuarios', u.uid)); aprovado = s.exists() && s.data().aprovado === true; } catch (e) {}
   if (!aprovado) { show('v-espera'); return; }
-  show('v-rep'); iniciaEditor();
+  show('v-rep', 'v-quest'); iniciaEditor(); iniciaQuest();
 }
 
 /* ---------- aprovações (só o dono) ---------- */
@@ -348,6 +381,110 @@ async function salvar() {
     msg('#rep-msg', `✅ Repertório de ${data.split('-').reverse().join('/')} salvo. Já aparece no site.`, 'ok');
   } catch (e) { msg('#rep-msg', 'Não consegui salvar: ' + esc(e.code || e.message), 'err'); }
   $('#salvar').disabled = false;
+}
+
+/* ---------- questionário de disponibilidade da escala ---------- */
+const FUNCOES_PADRAO = ['Violão', 'Baixo', 'Bateria', 'Guitarra', 'Teclado', 'Vocal'];
+const DIAS_SEM = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+const MESES_N = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const ymdL = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const brD = d => d.split('-').reverse().slice(0, 2).join('/');
+let qDatas = [], questIniciado = false;
+
+function domingosDo(mes) {
+  const [y, m] = mes.split('-').map(Number); const out = [];
+  for (let d = new Date(y, m - 1, 1, 12); d.getMonth() === m - 1; d.setDate(d.getDate() + 1)) if (d.getDay() === 0) out.push(ymdL(d));
+  return out;
+}
+function padraoDatas(mes) {
+  const ds = domingosDo(mes).map(d => ({ data: d, rotulo: '', on: true }));
+  if (mes.endsWith('-12')) ds.push({ data: mes + '-31', rotulo: 'Culto de Ano Novo', on: true });
+  return ds.sort((a, b) => a.data.localeCompare(b.data));
+}
+function mesAnterior(mes) { const [y, m] = mes.split('-').map(Number); const d = new Date(y, m - 2, 1, 12); return ymdL(d).slice(0, 7); }
+
+function iniciaQuest() {
+  if (questIniciado) return; questIniciado = true;
+  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + 1);
+  $('#q-mes').value = ymdL(d).slice(0, 7);
+  $('#q-mes').onchange = carregaQuest;
+  $('#q-add').onclick = () => {
+    const dt = $('#q-extra').value; if (!dt) return;
+    lerDatas(); if (!qDatas.some(x => x.data === dt)) qDatas.push({ data: dt, rotulo: $('#q-extra-rot').value.trim(), on: true });
+    qDatas.sort((a, b) => a.data.localeCompare(b.data)); $('#q-extra').value = ''; $('#q-extra-rot').value = ''; desenhaDatas();
+  };
+  $('#q-salvar').onclick = salvaQuest;
+  $('#q-atualizar').onclick = () => carregaRespostas($('#q-mes').value);
+  $('#q-copiar').onclick = async () => {
+    const link = SITE + 'escala.html';
+    try { await navigator.clipboard.writeText(link); msg('#q-msg', 'Link copiado: ' + esc(link), 'ok'); } catch (e) { prompt('Copie o link:', link); }
+  };
+  carregaQuest();
+}
+
+async function carregaQuest() {
+  const mes = $('#q-mes').value; if (!mes) return; msg('#q-msg', '');
+  let q = null; try { const s = await getDoc(doc(db, 'questionarios', mes)); if (s.exists()) q = s.data(); } catch (e) {}
+  const ant = mesAnterior(mes);
+  $('#q-abre').value = q ? q.abre : ant + '-17';
+  $('#q-fecha').value = q ? q.fecha : ant + '-24';
+  $('#q-funcoes').value = (q ? q.funcoes : FUNCOES_PADRAO).join(', ');
+  if (q) {
+    qDatas = q.datas.map(d => ({ ...d, on: true }));
+    domingosDo(mes).forEach(d => { if (!qDatas.some(x => x.data === d)) qDatas.push({ data: d, rotulo: '', on: false }); });
+    qDatas.sort((a, b) => a.data.localeCompare(b.data));
+  } else qDatas = padraoDatas(mes);
+  desenhaDatas();
+  if (q) carregaRespostas(mes); else $('#q-resp').innerHTML = '<p class="hint">Este mês ainda não tem questionário salvo.</p>';
+}
+function desenhaDatas() {
+  $('#q-datas').innerHTML = qDatas.map((d, i) => {
+    const dia = DIAS_SEM[new Date(d.data + 'T12:00:00').getDay()];
+    return `<div class="qd"><input type="checkbox" data-i="${i}"${d.on ? ' checked' : ''} aria-label="Incluir ${brD(d.data)}"><span class="dt">${brD(d.data)} <span class="hint">(${dia})</span></span><input class="rot" data-i="${i}" value="${esc(d.rotulo || '')}" placeholder="Descrição (opcional)"></div>`;
+  }).join('');
+}
+function lerDatas() {
+  $('#q-datas').querySelectorAll('input[type=checkbox]').forEach(cb => qDatas[+cb.dataset.i].on = cb.checked);
+  $('#q-datas').querySelectorAll('input.rot').forEach(r => qDatas[+r.dataset.i].rotulo = r.value.trim());
+}
+async function salvaQuest() {
+  lerDatas();
+  const mes = $('#q-mes').value, abre = $('#q-abre').value, fecha = $('#q-fecha').value;
+  const datas = qDatas.filter(d => d.on).map(d => ({ data: d.data, rotulo: d.rotulo || '' }));
+  const funcoes = $('#q-funcoes').value.split(',').map(x => x.trim()).filter(Boolean);
+  if (!mes || !abre || !fecha) { msg('#q-msg', 'Preencha o mês e as datas de abertura e fechamento.', 'err'); return; }
+  if (fecha < abre) { msg('#q-msg', 'A data de fechamento precisa ser depois da abertura.', 'err'); return; }
+  if (!datas.length || !funcoes.length) { msg('#q-msg', 'Marque pelo menos um dia e uma função.', 'err'); return; }
+  $('#q-salvar').disabled = true;
+  try {
+    await setDoc(doc(db, 'questionarios', mes), {
+      mes, abre, fecha, datas, funcoes,
+      abreTs: Timestamp.fromDate(new Date(abre + 'T00:00:00')), fechaTs: Timestamp.fromDate(new Date(fecha + 'T23:59:59')),
+      autor: auth.currentUser.email, atualizado: serverTimestamp()
+    });
+    msg('#q-msg', `✅ Questionário de ${MESES_N[+mes.slice(5) - 1]} salvo. Fica aberto para a equipe de ${brD(abre)} a ${brD(fecha)}.`, 'ok');
+    carregaRespostas(mes);
+  } catch (e) { msg('#q-msg', 'Não consegui salvar: ' + esc(e.code || e.message), 'err'); }
+  $('#q-salvar').disabled = false;
+}
+async function carregaRespostas(mes) {
+  $('#q-resp').innerHTML = '<p class="hint">Carregando…</p>';
+  try {
+    const [rs, ms, qs] = await Promise.all([getDocs(query(collection(db, 'respostas'), where('mes', '==', mes))), getDocs(collection(db, 'membros')), getDoc(doc(db, 'questionarios', mes))]);
+    const resp = rs.docs.map(d => d.data()).sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+    const membros = ms.docs.map(d => ({ chave: d.id, nome: d.data().nome })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+    const q = qs.exists() ? qs.data() : { datas: [] };
+    const faltam = membros.filter(m => !resp.some(r => r.chave === m.chave));
+    const porData = q.datas.map(d => `<tr><th>${brD(d.data)}${d.rotulo ? '<br><span class="hint">' + esc(d.rotulo) + '</span>' : ''}</th><td>${
+      resp.filter(r => r.datas.includes(d.data)).map(r => `<span class="tag"><b>${esc(r.nome.split(' ')[0])}</b> · ${esc(r.funcoes.join(', '))}</span>`).join('') || '<span class="hint">ninguém ainda</span>'}</td></tr>`).join('');
+    $('#q-resp').innerHTML = `
+      <p><b>${resp.length}</b> de <b>${membros.length}</b> pessoas cadastradas responderam.</p>
+      <table class="r"><thead><tr><th>Dia</th><th>Quem pode (e onde)</th></tr></thead><tbody>${porData}</tbody></table>
+      <h3 class="sub">Por pessoa</h3>
+      <table class="r"><thead><tr><th>Nome</th><th>Dias</th><th>Funções</th></tr></thead><tbody>${resp.map(r => `<tr><td>${esc(r.nome)}</td><td>${r.datas.map(brD).join(', ')}</td><td>${esc(r.funcoes.join(', '))}</td></tr>`).join('') || '<tr><td colspan="3" class="hint">Nenhuma resposta ainda.</td></tr>'}</tbody></table>
+      <h3 class="sub">Ainda não responderam (${faltam.length})</h3>
+      <p>${faltam.map(m => esc(m.nome)).join(', ') || '<span class="hint">Todos os cadastrados já responderam.</span>'}</p>`;
+  } catch (e) { $('#q-resp').innerHTML = '<p class="hint">Não consegui ler as respostas (' + esc(e.code || e.message) + ').</p>'; }
 }
 </script>
 </body>

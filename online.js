@@ -44,6 +44,21 @@
         const partes = +((doc.fields.partes || {}).integerValue || 0);
         if (partes > 0 && DATA.publicados.includes(date)) DATA.cifras[date] = { pdf: '#pdf-online=' + date, online: true };
       }
+      /* questionário de disponibilidade aberto: aviso no topo da página inicial */
+      const qj = await getJSON(base() + '/questionarios' + key).catch(() => null);
+      const agora = Date.now();
+      const MES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+      for (const doc of ((qj && qj.documents) || [])) {
+        const f = doc.fields || {}, ab = Date.parse((f.abreTs || {}).timestampValue), fe = Date.parse((f.fechaTs || {}).timestampValue);
+        if (ab <= agora && agora <= fe) {
+          const mes = doc.name.split('/').pop(), fecha = (f.fecha || {}).stringValue || '';
+          const alvo = document.getElementById('proximo');
+          if (alvo && !document.getElementById('aviso-escala')) alvo.insertAdjacentHTML('beforebegin',
+            `<a id="aviso-escala" href="escala.html" style="display:block;margin:18px 0 0;padding:14px 18px;border-radius:14px;background:#fff3d6;color:#5c3d00;border:2px solid #f0a020;text-decoration:none;font-weight:600">🗓️ <b>Escala de ${MES[+mes.slice(5, 7) - 1]}:</b> marque sua disponibilidade até ${fecha.split('-').reverse().slice(0, 2).join('/')} →</a>`);
+          DATA.questionarioAberto = mes;
+          break;
+        }
+      }
     } catch (e) { /* sem internet: segue com os dados fixos */ }
     return DATA;
   };

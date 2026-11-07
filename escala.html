@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Disponibilidade para a escala · Louvor 4ª IPB GV</title>
+<script src="config.js"></script>
+<style>
+:root{--bg:#f3f7f2;--surface:#fff;--ink:#1f2d24;--muted:#5d6f62;--green:#4f7a5c;--soft:#dfeadf;--line:#d6e2d6}
+@media (prefers-color-scheme:dark){:root{--bg:#141b16;--surface:#1c2620;--ink:#e3ece4;--muted:#9db1a2;--green:#8fbf9a;--soft:#24342a;--line:#2e3d33}}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+.bar{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line)}
+.bar h1{font-size:1.1rem;margin:0 auto 0 0}
+main{max-width:720px;margin:0 auto;padding:18px 16px 60px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+h2{margin:0 0 6px;font-size:1.2rem}
+p.lead{margin:0 0 14px;color:var(--muted)}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:.9rem;font-weight:700;margin-bottom:14px}
+input[type=text]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;min-height:44px}
+fieldset{border:1px solid var(--line);border-radius:10px;margin:0 0 14px;padding:10px 14px}
+legend{font-weight:700;font-size:.9rem;padding:0 6px}
+.op{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.op:last-child{border-bottom:0}
+.op input{width:20px;height:20px;accent-color:var(--green)}
+.op small{color:var(--muted)}
+button,.btn{font:inherit;font-weight:700;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:999px;padding:10px 18px;min-height:44px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+button.primary{background:var(--green);color:#fff;border-color:var(--green)}
+button:disabled{opacity:.6}
+.msg{padding:10px 12px;border-radius:8px;background:var(--soft);margin:12px 0 0}
+.msg.err{background:#f9e1df;color:#7a2620}.msg.ok{background:#dff1e4;color:#1d5a32}
+@media (prefers-color-scheme:dark){.msg.err{background:#3b2220;color:#f2b5ae}.msg.ok{background:#1f3a28;color:#b8e6c6}}
+.hint{font-size:.85rem;color:var(--muted)}
+.prazo{display:inline-block;background:#fff3d6;color:#7a5200;border-radius:999px;padding:3px 12px;font-weight:700;font-size:.85rem;margin-bottom:10px}
+@media (prefers-color-scheme:dark){.prazo{background:#3a2c12;color:#f0c46a}}
+</style>
+</head>
+<body>
+<div class="bar"><h1>🗓️ Disponibilidade para a escala</h1><a class="btn" href="./">← Site</a></div>
+<main>
+
+<div class="card" id="c-quest"><p class="hint">Carregando…</p></div>
+
+<div class="card">
+  <h2>Cadastro da equipe</h2>
+  <p class="lead">Faça o cadastro uma vez só, com seu nome completo. No questionário da escala, escreva o nome exatamente como cadastrou.</p>
+  <form id="f-cad">
+    <label class="f">Nome completo<input type="text" id="cad-nome" autocomplete="name" required minlength="5"></label>
+    <button class="primary" type="submit">Cadastrar</button>
+  </form>
+  <div id="cad-msg"></div>
+</div>
+
+</main>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getFirestore, doc, getDoc, setDoc, collection, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const CFG = window.LOUVOR_CONFIG || {};
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const msg = (el, t, k = '') => { $(el).innerHTML = t ? `<div class="msg ${k}">${t}</div>` : ''; };
+/* nome → chave: sem acentos, minúsculo, espaços viram hífen (assim "José da Silva" e "jose  da silva" são a mesma pessoa) */
+const chave = n => String(n || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+const limpaNome = n => String(n || '').trim().replace(/\s+/g, ' ');
+const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const DIAS = ['domingo','segunda','terça','quarta','quinta','sexta','sábado'];
+const br = d => d.split('-').reverse().slice(0, 2).join('/');
+const nomeMes = m => MESES[+m.slice(5, 7) - 1] + ' de ' + m.slice(0, 4);
+
+if (!CFG.firebase || !CFG.firebase.apiKey) { $('#c-quest').innerHTML = '<p class="hint">Ainda não configurado.</p>'; throw new Error('sem config'); }
+const db = getFirestore(initializeApp(CFG.firebase));
+
+/* ---------- cadastro ---------- */
+$('#f-cad').onsubmit = async e => {
+  e.preventDefault();
+  const nome = limpaNome($('#cad-nome').value), k = chave(nome);
+  if (nome.split(' ').length < 2) { msg('#cad-msg', 'Escreva o nome completo (nome e sobrenome).', 'err'); return; }
+  try {
+    const ref = doc(db, 'membros', k);
+    if ((await getDoc(ref)).exists()) { msg('#cad-msg', `<b>${esc(nome)}</b> já está cadastrado(a). É só responder o questionário.`, 'ok'); return; }
+    await setDoc(ref, { nome, criado: serverTimestamp() });
+    msg('#cad-msg', `✅ Cadastro feito: <b>${esc(nome)}</b>. Use este mesmo nome no questionário da escala.`, 'ok');
+    if ($('#q-nome') && !$('#q-nome').value) $('#q-nome').value = nome;
+  } catch (err) { msg('#cad-msg', 'Não consegui cadastrar agora. Tente de novo.', 'err'); }
+};
+
+/* ---------- questionário do mês ---------- */
+async function carrega() {
+  const hoje = new Date();
+  let qs = [];
+  try { qs = (await getDocs(collection(db, 'questionarios'))).docs.map(d => ({ mes: d.id, ...d.data() })); } catch (e) {}
+  const aberto = qs.find(q => q.abreTs && q.fechaTs && hoje >= q.abreTs.toDate() && hoje <= q.fechaTs.toDate());
+  if (!aberto) {
+    const prox = qs.filter(q => q.abreTs && q.abreTs.toDate() > hoje).sort((a, b) => a.abreTs.toMillis() - b.abreTs.toMillis())[0];
+    $('#c-quest').innerHTML = `<h2>Questionário da escala</h2><p class="lead">${prox
+      ? `O questionário da escala de <b>${nomeMes(prox.mes)}</b> abre em <b>${br(prox.abre)}</b> e fica disponível até <b>${br(prox.fecha)}</b>.`
+      : 'Nenhum questionário aberto no momento. Quando a escala do próximo mês for montada, ele aparece aqui.'}</p><p class="hint">Enquanto isso, já dá para fazer o cadastro abaixo.</p>`;
+    return;
+  }
+  const q = aberto;
+  $('#c-quest').innerHTML = `
+    <span class="prazo">Responda até ${br(q.fecha)}</span>
+    <h2>Escala de ${esc(nomeMes(q.mes))}</h2>
+    <p class="lead">Escolha os dias em que pode participar e onde podemos escalar você. Se precisar mudar, é só enviar de novo até o prazo.</p>
+    <form id="f-q">
+      <label class="f">Seu nome (igual ao cadastro)<input type="text" id="q-nome" autocomplete="name" required></label>
+      <fieldset><legend>Dias que vai poder participar</legend>${q.datas.map(d => {
+        const dt = new Date(d.data + 'T12:00:00');
+        return `<label class="op"><input type="checkbox" name="d" value="${d.data}"><span><b>${br(d.data)}</b> <small>(${DIAS[dt.getDay()]})${d.rotulo ? ' · ' + esc(d.rotulo) : ''}</small></span></label>`;
+      }).join('')}</fieldset>
+      <fieldset><legend>Onde podemos escalar você?</legend>${q.funcoes.map(f => `<label class="op"><input type="checkbox" name="f" value="${esc(f)}"><span>${esc(f)}</span></label>`).join('')}</fieldset>
+      <button class="primary" type="submit">Enviar</button>
+    </form>
+    <div id="q-msg"></div>`;
+  $('#f-q').onsubmit = async e => {
+    e.preventDefault();
+    const nome = limpaNome($('#q-nome').value), k = chave(nome);
+    const datas = [...document.querySelectorAll('input[name=d]:checked')].map(i => i.value);
+    const funcoes = [...document.querySelectorAll('input[name=f]:checked')].map(i => i.value);
+    if (!datas.length) { msg('#q-msg', 'Marque pelo menos um dia.', 'err'); return; }
+    if (!funcoes.length) { msg('#q-msg', 'Marque pelo menos uma função.', 'err'); return; }
+    const b = $('#f-q button'); b.disabled = true; msg('#q-msg', 'Enviando…');
+    try {
+      const m = await getDoc(doc(db, 'membros', k));
+      if (!m.exists()) { msg('#q-msg', `Não encontrei <b>${esc(nome)}</b> no cadastro. Confira se escreveu igual ao cadastro, ou faça o cadastro logo abaixo e envie de novo.`, 'err'); b.disabled = false; return; }
+      await setDoc(doc(db, 'respostas', q.mes + '__' + k), { mes: q.mes, chave: k, nome: m.data().nome, datas, funcoes, atualizado: serverTimestamp() });
+      msg('#q-msg', `✅ Obrigado, <b>${esc(m.data().nome)}</b>! Sua disponibilidade para ${esc(nomeMes(q.mes))} foi registrada.`, 'ok');
+    } catch (err) { msg('#q-msg', 'Não consegui enviar agora (o prazo pode ter terminado). Tente de novo ou fale com o líder.', 'err'); }
+    b.disabled = false;
+  };
+}
+carrega();
+</script>
+</body>
+</html>
