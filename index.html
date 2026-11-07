@@ -127,7 +127,7 @@ footer{padding:40px 0 50px;color:var(--muted);font-size:.88rem}
 
 <section id="proximo">
   <h2>Próximo domingo</h2>
-  <p class="lead">Quem está escalado e o que vamos cantar. A data muda sozinha para o domingo seguinte.</p>
+  <p class="lead">Quem está escalado e o que vamos cantar.</p>
   <div class="grid2">
     <div class="card"><div class="eyebrow">Escala</div><div class="next-date" id="nx-date"></div><dl class="roster" id="nx-roster"></dl></div>
     <div class="card"><div class="eyebrow">Repertório</div><div id="nx-set"></div></div>
@@ -219,7 +219,20 @@ const M = {A:'Adoração',C:'Confissão',L:'Louvor'};
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
 const byTitle = {}; DATA.musicas.forEach(m => byTitle[m.t] = m);
-const songLinks = t => { const m = byTitle[t]; return m ? `<span class="links"><a href="${m.yt}">YouTube</a><a href="${m.cc}">Cifra</a></span>` : ''; };
+const ytBusca = q => 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q);
+const ccBusca = q => 'https://www.cifraclub.com.br/?q=' + encodeURIComponent(q);
+const songLinks = t => {
+  const m = byTitle[t];
+  if (m) return `<span class="links"><a href="${m.yt}">YouTube</a><a href="${m.cc}">Cifra</a></span>`;
+  const hn = t.match(/^Hino\s+(\d+)/i);
+  if (hn) {
+    const h = (DATA.hinario||[]).find(x => +x[0] === +hn[1]);
+    const nome = h ? h[1] : t.replace(/^Hino\s+\d+\s*[–-]\s*/,'');
+    const cc = h && h[4] ? 'https://www.cifraclub.com.br' + h[4] : ccBusca('Hino ' + (+hn[1]) + ' ' + nome + ' Novo Cântico');
+    return `<span class="links"><a href="${ytBusca('Hino ' + (+hn[1]) + ' ' + nome + ' Novo Cântico')}">YouTube</a><a href="${cc}">Cifra</a></span>`;
+  }
+  return `<span class="links"><a href="${ytBusca(t)}">YouTube</a><a href="${ccBusca(t)}">Cifra</a></span>`;
+};
 const ICON = {'Teclado':'🎹','Violão':'🎸','Guitarra':'⚡','Baixo':'🔊','Bateria':'🥁'};
 const ico = f => `<span class="ico" aria-hidden="true">${ICON[f] || (f.startsWith('Vocal') ? '🎤' : '🎵')}</span>`;
 const ymd = d => d.toISOString().slice(0,10);
