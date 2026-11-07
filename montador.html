@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Montador de cifras · Louvor 4ª IPB GV</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="config.js"></script>
+<script src="online.js"></script>
 <style>
 /* Layout: barra superior com ações, coluna de "músicas da liturgia" (cartões editáveis) e prévia do PDF abaixo */
 :root{--bg:#f3f7f2;--surface:#fff;--ink:#1f2d24;--muted:#5d6f62;--green:#4f7a5c;--soft:#dfeadf;--line:#d6e2d6;--chord:#ff7a00;--danger:#a3413b}
@@ -271,7 +273,10 @@ async function getSite(){
   if(siteData) return siteData;
   const h = await (await fetch('./index.html', {cache:'no-store'})).text();
   const m = h.match(/const DATA = (\{[\s\S]*?\});\n/);
-  siteData = JSON.parse(m[1]); return siteData;
+  siteData = JSON.parse(m[1]);
+  /* repertórios salvos pelos administradores no painel */
+  if(window.carregaRepertoriosOnline) await window.carregaRepertoriosOnline(siteData);
+  return siteData;
 }
 $('#pull').onclick = async () => {
   try{

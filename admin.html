@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Administrador · Louvor 4ª IPB GV</title>
+<meta name="robots" content="noindex">
+<script src="config.js"></script>
+<style>
+:root{--bg:#f3f7f2;--surface:#fff;--ink:#1f2d24;--muted:#5d6f62;--green:#4f7a5c;--soft:#dfeadf;--line:#d6e2d6;--danger:#a3413b;--ok:#2f7d4a}
+@media (prefers-color-scheme:dark){:root{--bg:#141b16;--surface:#1c2620;--ink:#e3ece4;--muted:#9db1a2;--green:#8fbf9a;--soft:#24342a;--line:#2e3d33;--danger:#e58a83;--ok:#7fd19a}}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+.bar{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--line)}
+.bar h1{font-size:1.1rem;margin:0 auto 0 0}
+main{max-width:860px;margin:0 auto;padding:18px 16px 60px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px}
+h2{margin:0 0 6px;font-size:1.2rem}
+p.lead{margin:0 0 14px;color:var(--muted)}
+label{display:flex;flex-direction:column;gap:4px;font-size:.85rem;color:var(--muted);font-weight:600}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;min-height:42px}
+button,.btn{font:inherit;font-weight:700;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:999px;padding:9px 16px;min-height:42px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+button.primary{background:var(--green);color:#fff;border-color:var(--green)}
+button.link{background:none;border:0;color:var(--green);padding:0;min-height:0;text-decoration:underline}
+button:disabled{opacity:.6;cursor:default}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabs button[aria-selected="true"]{background:var(--green);color:#fff;border-color:var(--green)}
+.form{display:grid;gap:12px;max-width:420px}
+.msg{padding:10px 12px;border-radius:8px;background:var(--soft);margin:10px 0 0}
+.msg.err{background:#f9e1df;color:#7a2620}.msg.ok{background:#dff1e4;color:#1d5a32}
+@media (prefers-color-scheme:dark){.msg.err{background:#3b2220;color:#f2b5ae}.msg.ok{background:#1f3a28;color:#b8e6c6}}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.culto{border-top:1px dashed var(--line);padding-top:12px;margin-top:14px}
+.culto h3{margin:0 0 10px;font-size:1rem;color:var(--green);letter-spacing:.05em}
+.slot{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:center;margin-bottom:8px}
+.slot .m{font-weight:700;font-size:.9rem}
+.slot select.m{font-weight:700}
+.slot .fixed{padding:9px 10px;color:var(--muted)}
+@media (max-width:560px){.slot{grid-template-columns:1fr;gap:4px}}
+.hint{font-size:.85rem;color:var(--muted)}
+.pend{display:flex;gap:10px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding:8px 0}
+.hidden{display:none!important}
+.who{font-size:.85rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>🔐 Administrador</h1>
+  <span class="who" id="who"></span>
+  <button type="button" class="hidden" id="sair">Sair</button>
+  <a class="btn" href="./">← Site</a>
+</div>
+<main>
+
+<div class="card hidden" id="v-config">
+  <h2>Painel ainda não configurado</h2>
+  <p class="lead">Falta ligar o painel ao Firebase. Assim que o arquivo <code>config.js</code> for preenchido, o login aparece aqui.</p>
+</div>
+
+<div class="card hidden" id="v-login">
+  <h2>Área dos administradores</h2>
+  <p class="lead">Aqui os administradores montam o repertório de domingo que aparece na primeira página do site. O montador de cifras continua aberto para todos.</p>
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" aria-selected="true" data-tab="entrar">Entrar</button>
+    <button type="button" role="tab" aria-selected="false" data-tab="cadastro">Pedir cadastro</button>
+  </div>
+  <form class="form" id="f-entrar">
+    <label>E-mail<input type="email" id="le" autocomplete="username" required></label>
+    <label>Senha<input type="password" id="ls" autocomplete="current-password" required minlength="6"></label>
+    <div class="row"><button class="primary" type="submit">Entrar</button><button type="button" class="link" id="esqueci">Esqueci a senha</button></div>
+  </form>
+  <form class="form hidden" id="f-cadastro">
+    <label>Nome<input id="cn" autocomplete="name" required></label>
+    <label>E-mail<input type="email" id="ce" autocomplete="email" required></label>
+    <label>Senha (mínimo 6 caracteres)<input type="password" id="cs" autocomplete="new-password" required minlength="6"></label>
+    <button class="primary" type="submit">Pedir cadastro</button>
+    <div class="hint">O pedido vai para o Pr. Atos aprovar. Depois da aprovação, é só entrar com este e-mail e senha.</div>
+  </form>
+  <div id="login-msg"></div>
+</div>
+
+<div class="card hidden" id="v-espera">
+  <h2>Cadastro aguardando aprovação</h2>
+  <p class="lead">Seu pedido foi enviado. Assim que for aprovado, recarregue esta página para montar o repertório.</p>
+  <button type="button" id="recarregar">Verificar de novo</button>
+</div>
+
+<div class="card hidden" id="v-verificar">
+  <h2>Confirme seu e-mail</h2>
+  <p class="lead">Para aprovar cadastros, confirme o e-mail <b id="ver-email"></b> pelo link que o sistema enviou. Depois toque em “Já confirmei”.</p>
+  <div class="row"><button type="button" class="primary" id="ja-confirmei">Já confirmei</button><button type="button" id="reenviar">Reenviar e-mail</button></div>
+</div>
+
+<div class="card hidden" id="v-aprov">
+  <h2>Cadastros pendentes</h2>
+  <div id="aprov-msg"></div>
+  <div id="pend-list"><p class="hint">Carregando…</p></div>
+</div>
+
+<div class="card hidden" id="v-rep">
+  <h2>Repertório de domingo</h2>
+  <p class="lead">Escolha o domingo e as músicas de cada momento. Ao salvar, o repertório aparece na primeira página do site, com links, playlist do YouTube e acesso pelo montador de cifras.</p>
+  <div class="row">
+    <label>Domingo<input type="date" id="data"></label>
+    <label style="flex:1;min-width:220px">Playlist do Spotify (opcional)<input id="sp" placeholder="https://open.spotify.com/playlist/…"></label>
+  </div>
+  <div id="cultos"></div>
+  <div class="row" style="margin-top:14px">
+    <label style="flex-direction:row;align-items:center;gap:8px;font-weight:600"><input type="checkbox" id="ceia" style="min-height:0"> Tem Santa Ceia neste domingo</label>
+  </div>
+  <div class="row" style="margin-top:16px">
+    <button type="button" class="primary" id="salvar">💾 Salvar repertório</button>
+    <a class="btn" href="./" target="_blank">Ver o site</a>
+  </div>
+  <div id="rep-msg"></div>
+  <p class="hint">Toque no campo da música para ver a lista do momento. Os hinos do Novo Cântico aparecem como “Hino 113 – Achei um Bom Amigo”.</p>
+</div>
+
+</main>
+<datalist id="dl-todas"></datalist><datalist id="dl-A"></datalist><datalist id="dl-C"></datalist><datalist id="dl-L"></datalist>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendEmailVerification, sendPasswordResetEmail, updateProfile } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const CFG = window.LOUVOR_CONFIG || {};
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const show = (...ids) => { ['v-config','v-login','v-espera','v-verificar','v-aprov','v-rep'].forEach(id => $('#'+id).classList.toggle('hidden', !ids.includes(id))); };
+const msg = (el, text, kind='') => { $(el).innerHTML = text ? `<div class="msg ${kind}">${text}</div>` : ''; };
+const DONO = String(CFG.dono || '').toLowerCase();
+const SITE = location.origin + location.pathname.replace(/[^/]*$/, '');
+
+if (!CFG.firebase || !CFG.firebase.apiKey) { show('v-config'); throw new Error('sem config'); }
+const app = initializeApp(CFG.firebase);
+const auth = getAuth(app); auth.languageCode = 'pt';
+const db = getFirestore(app);
+
+/* aprovação vinda do link do e-mail: admin.html#aprovar=UID */
+const aprovarUid = (location.hash.match(/aprovar=([\w-]+)/) || [])[1] || null;
+
+/* ---------- login / cadastro ---------- */
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.setAttribute('aria-selected', x === b));
+  $('#f-entrar').classList.toggle('hidden', b.dataset.tab !== 'entrar');
+  $('#f-cadastro').classList.toggle('hidden', b.dataset.tab !== 'cadastro');
+  msg('#login-msg', '');
+});
+const erroPt = e => ({
+  'auth/invalid-credential':'E-mail ou senha incorretos.', 'auth/wrong-password':'E-mail ou senha incorretos.', 'auth/user-not-found':'E-mail ou senha incorretos.',
+  'auth/email-already-in-use':'Este e-mail já tem cadastro. Use “Entrar”.', 'auth/weak-password':'A senha precisa ter pelo menos 6 caracteres.',
+  'auth/invalid-email':'E-mail inválido.', 'auth/too-many-requests':'Muitas tentativas. Espere alguns minutos.', 'auth/network-request-failed':'Sem conexão com a internet.'
+}[e.code] || ('Não deu certo: ' + (e.code || e.message)));
+
+$('#f-entrar').onsubmit = async e => {
+  e.preventDefault(); msg('#login-msg', 'Entrando…');
+  try { await signInWithEmailAndPassword(auth, $('#le').value.trim(), $('#ls').value); msg('#login-msg', ''); }
+  catch (err) { msg('#login-msg', erroPt(err), 'err'); }
+};
+$('#esqueci').onclick = async () => {
+  const em = $('#le').value.trim(); if (!em) { msg('#login-msg', 'Escreva seu e-mail no campo acima e toque de novo.', 'err'); return; }
+  try { await sendPasswordResetEmail(auth, em); msg('#login-msg', 'Enviamos um e-mail para criar uma nova senha.', 'ok'); }
+  catch (err) { msg('#login-msg', erroPt(err), 'err'); }
+};
+$('#f-cadastro').onsubmit = async e => {
+  e.preventDefault();
+  const nome = $('#cn').value.trim(), email = $('#ce').value.trim().toLowerCase(), senha = $('#cs').value;
+  msg('#login-msg', 'Enviando pedido…');
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, senha);
+    await updateProfile(cred.user, { displayName: nome });
+    await sendEmailVerification(cred.user).catch(() => {});
+    if (email !== DONO) {
+      await setDoc(doc(db, 'usuarios', cred.user.uid), { nome, email, aprovado: false, criado: serverTimestamp() });
+      await avisaDono(nome, email, cred.user.uid);
+    }
+    msg('#login-msg', '');
+  } catch (err) { msg('#login-msg', erroPt(err), 'err'); }
+};
+
+/* e-mail para o Pr. Atos com o botão "Aceitar cadastro" (EmailJS) */
+async function avisaDono(nome, email, uid) {
+  const E = CFG.emailjs || {};
+  if (!E.publicKey) return;
+  try {
+    if (!window.emailjs) await new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js'; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+    await window.emailjs.send(E.serviceId, E.templateId, { nome, email, link: SITE + 'admin.html#aprovar=' + uid, to_email: CFG.dono }, { publicKey: E.publicKey });
+  } catch (e) { console.warn('e-mail de aprovação não enviado', e); }
+}
+
+$('#sair').onclick = () => signOut(auth);
+$('#recarregar').onclick = () => location.reload();
+$('#reenviar').onclick = async () => { await sendEmailVerification(auth.currentUser).catch(() => {}); alert('E-mail reenviado.'); };
+$('#ja-confirmei').onclick = async () => { await auth.currentUser.reload(); await auth.currentUser.getIdToken(true); entrouComo(auth.currentUser); };
+
+/* ---------- quem entrou ---------- */
+onAuthStateChanged(auth, u => entrouComo(u));
+async function entrouComo(u) {
+  $('#sair').classList.toggle('hidden', !u);
+  $('#who').textContent = u ? (u.displayName || u.email) : '';
+  if (!u) { show('v-login'); return; }
+  const ehDono = (u.email || '').toLowerCase() === DONO;
+  if (ehDono) {
+    if (!u.emailVerified) { $('#ver-email').textContent = u.email; show('v-verificar'); return; }
+    show('v-aprov', 'v-rep');
+    await carregaPendentes();
+    iniciaEditor();
+    return;
+  }
+  let aprovado = false;
+  try { const s = await getDoc(doc(db, 'usuarios', u.uid)); aprovado = s.exists() && s.data().aprovado === true; } catch (e) {}
+  if (!aprovado) { show('v-espera'); return; }
+  show('v-rep'); iniciaEditor();
+}
+
+/* ---------- aprovações (só o dono) ---------- */
+async function carregaPendentes() {
+  if (aprovarUid) {
+    try {
+      const ref = doc(db, 'usuarios', aprovarUid); const s = await getDoc(ref);
+      if (s.exists()) { await updateDoc(ref, { aprovado: true, aprovadoEm: serverTimestamp() }); msg('#aprov-msg', `✅ Cadastro de <b>${esc(s.data().nome)}</b> (${esc(s.data().email)}) aceito.`, 'ok'); }
+      else msg('#aprov-msg', 'Esse pedido de cadastro não foi encontrado.', 'err');
+    } catch (e) { msg('#aprov-msg', 'Não consegui aceitar: ' + esc(e.code || e.message), 'err'); }
+    history.replaceState(null, '', location.pathname);
+  }
+  try {
+    const q = await getDocs(query(collection(db, 'usuarios'), where('aprovado', '==', false)));
+    $('#pend-list').innerHTML = q.empty ? '<p class="hint">Nenhum pedido esperando.</p>' :
+      q.docs.map(d => `<div class="pend"><span><b>${esc(d.data().nome)}</b><br><span class="hint">${esc(d.data().email)}</span></span><button type="button" class="primary" data-uid="${d.id}">Aceitar cadastro</button></div>`).join('');
+    $('#pend-list').querySelectorAll('button[data-uid]').forEach(b => b.onclick = async () => {
+      b.disabled = true; await updateDoc(doc(db, 'usuarios', b.dataset.uid), { aprovado: true, aprovadoEm: serverTimestamp() }); b.closest('.pend').remove();
+      msg('#aprov-msg', '✅ Cadastro aceito.', 'ok');
+    });
+  } catch (e) { $('#pend-list').innerHTML = '<p class="hint">Não consegui ler os pedidos (' + esc(e.code || e.message) + ').</p>'; }
+}
+
+/* ---------- editor do repertório ---------- */
+const MANHA = ['Hino', 'Abertura', 'Música nova', 'Louvor', 'Adoração', 'Confissão', 'Prelúdio'];
+const NOITE = [['Prelúdio','todas'], ['Adoração','A'], ['Confissão','C'], ['Louvor','L'], ['Louvor','L'], ['Pós-pregação','todas'], ['Tríplice Amém', null]];
+let SITE_DATA = null, iniciado = false;
+
+async function siteData() {
+  if (SITE_DATA) return SITE_DATA;
+  const h = await (await fetch('./index.html', { cache: 'no-store' })).text();
+  SITE_DATA = JSON.parse(h.match(/const DATA = (\{[\s\S]*?\});\n/)[1]);
+  return SITE_DATA;
+}
+function nomeHino(h) { return `Hino ${parseInt(h[0], 10)}${h[0].includes('-A') ? '-A' : ''} – ${h[1]}`; }
+
+async function iniciaEditor() {
+  if (iniciado) return; iniciado = true;
+  const D = await siteData();
+  const mus = (D.musicas || []).slice().sort((a, b) => a.t.localeCompare(b.t, 'pt'));
+  const hin = (D.hinario || []).map(nomeHino);
+  const opt = list => list.map(t => `<option value="${esc(t)}">`).join('');
+  $('#dl-todas').innerHTML = opt([...mus.map(m => m.t), ...hin]);
+  for (const c of ['A', 'C', 'L']) $('#dl-' + c).innerHTML = opt([...mus.filter(m => (m.m || []).includes(c)).map(m => m.t), ...hin]);
+  /* próximo domingo */
+  const d = new Date(); d.setHours(12); d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
+  $('#data').value = d.toISOString().slice(0, 10);
+  $('#data').onchange = carregaData;
+  $('#ceia').onchange = () => desenha(lerForm());
+  $('#salvar').onclick = salvar;
+  carregaData();
+}
+
+function desenha(rep) {
+  const manha = (rep && rep.cultos.find(c => c.culto === 'Manhã')) || { itens: [] };
+  const noite = (rep && rep.cultos.find(c => c.culto === 'Noite')) || { itens: [] };
+  const ceia = $('#ceia').checked;
+  const mSlots = [0, 1].map(i => manha.itens[i] || { m: i ? 'Música nova' : 'Hino', t: '' });
+  const nSlots = []; const usados = new Set();
+  const pega = (m, k) => { const i = noite.itens.findIndex((x, j) => x.m === m && !usados.has(j)); if (i < 0) return ''; usados.add(i); return noite.itens[i].t; };
+  NOITE.forEach(([m, lista], k) => {
+    nSlots.push({ m, lista, t: lista ? pega(m) : 'Tríplice Amém' });
+    if (ceia && m === 'Pós-pregação') nSlots.splice(nSlots.length - 1, 0, { m: 'Santa Ceia', lista: 'todas', t: pega('Santa Ceia') });
+  });
+  $('#cultos').innerHTML = `
+    <div class="culto"><h3>MANHÃ · 2 músicas</h3>${mSlots.map((s, i) => `
+      <div class="slot"><select class="m" data-culto="Manhã" data-i="${i}">${[...new Set([s.m, ...MANHA])].map(o => `<option${o === s.m ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>
+      <input data-culto="Manhã" data-i="${i}" list="dl-todas" value="${esc(s.t)}" placeholder="Toque para escolher" autocomplete="off"></div>`).join('')}</div>
+    <div class="culto"><h3>NOITE · liturgia</h3>${nSlots.map((s, i) => `
+      <div class="slot"><span class="m">${esc(s.m)}</span>${s.lista ? `<input data-culto="Noite" data-m="${esc(s.m)}" list="dl-${s.lista}" value="${esc(s.t)}" placeholder="Toque para escolher" autocomplete="off">` : `<span class="fixed">Tríplice Amém (fixo)</span>`}</div>`).join('')}</div>`;
+  /* ao tocar no campo, limpa para mostrar a lista inteira; se sair sem escolher, volta o que estava */
+  $('#cultos').querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('focus', () => { if (inp.value) { inp.dataset.prev = inp.value; inp.placeholder = inp.value; inp.value = ''; } });
+    inp.addEventListener('blur', () => { if (!inp.value && inp.dataset.prev) inp.value = inp.dataset.prev; delete inp.dataset.prev; });
+  });
+}
+
+function lerForm() {
+  const manha = { culto: 'Manhã', itens: [] }, noite = { culto: 'Noite', itens: [] };
+  $('#cultos').querySelectorAll('input[data-culto="Manhã"]').forEach(inp => {
+    const m = $(`select[data-culto="Manhã"][data-i="${inp.dataset.i}"]`).value;
+    if (inp.value.trim()) manha.itens.push({ m, t: inp.value.trim() });
+  });
+  $('#cultos').querySelectorAll('.culto:nth-child(2) .slot').forEach(sl => {
+    const m = sl.querySelector('.m').textContent, inp = sl.querySelector('input');
+    if (!inp) noite.itens.push({ m: 'Encerramento', t: 'Tríplice Amém' });
+    else if (inp.value.trim()) noite.itens.push({ m, t: inp.value.trim() });
+  });
+  return { cultos: [manha, noite].filter(c => c.itens.length), sp: $('#sp').value.trim() };
+}
+
+async function carregaData() {
+  const data = $('#data').value; msg('#rep-msg', '');
+  if (data && new Date(data + 'T12:00:00').getDay() !== 0) msg('#rep-msg', 'Atenção: essa data não é domingo.', 'err');
+  let rep = null;
+  try { const s = await getDoc(doc(db, 'repertorios', data)); if (s.exists()) rep = JSON.parse(s.data().json); } catch (e) {}
+  if (!rep) { const D = await siteData(); if (D.repertorios && D.repertorios[data]) rep = { cultos: D.repertorios[data], sp: ((D.semana || {})[data] || {}).sp || '' }; }
+  $('#sp').value = (rep && rep.sp) || '';
+  $('#ceia').checked = !!(rep && rep.cultos.some(c => c.itens.some(i => i.m === 'Santa Ceia')));
+  desenha(rep);
+}
+
+async function salvar() {
+  const data = $('#data').value; if (!data) { msg('#rep-msg', 'Escolha o domingo.', 'err'); return; }
+  const rep = lerForm();
+  const D = await siteData();
+  const conhecidas = new Set([...(D.musicas || []).map(m => m.t), ...(D.hinario || []).map(nomeHino), 'Tríplice Amém']);
+  const fora = rep.cultos.flatMap(c => c.itens).map(i => i.t).filter(t => !conhecidas.has(t));
+  const vazios = $('#cultos').querySelectorAll('input').length - rep.cultos.reduce((n, c) => n + c.itens.filter(i => i.t !== 'Tríplice Amém').length, 0);
+  if (fora.length && !confirm('Estas músicas não estão no repertório do site (ficarão sem links):\n\n' + fora.join('\n') + '\n\nSalvar assim mesmo?')) return;
+  if (vazios > 0 && !confirm(`Há ${vazios} momento(s) sem música. Salvar assim mesmo?`)) return;
+  $('#salvar').disabled = true; msg('#rep-msg', 'Salvando…');
+  try {
+    await setDoc(doc(db, 'repertorios', data), { json: JSON.stringify(rep), autor: auth.currentUser.email, atualizado: serverTimestamp() });
+    msg('#rep-msg', `✅ Repertório de ${data.split('-').reverse().join('/')} salvo. Já aparece no site.`, 'ok');
+  } catch (e) { msg('#rep-msg', 'Não consegui salvar: ' + esc(e.code || e.message), 'err'); }
+  $('#salvar').disabled = false;
+}
+</script>
+</body>
+</html>
