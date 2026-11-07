@@ -58,28 +58,48 @@ footer{color:var(--muted);font-size:.85rem;padding:30px 0 40px;text-align:center
   /* converte o formato do Firestore REST em objeto comum */
   const val = v => v.stringValue ?? v.integerValue ?? v.booleanValue ?? (v.arrayValue ? (v.arrayValue.values || []).map(val) : v.mapValue ? obj(v.mapValue.fields || {}) : null);
   const obj = f => Object.fromEntries(Object.entries(f).map(([k, v]) => [k, val(v)]));
-  let G, MUS = [];
+  let G, MUS = [], PROX = [];
   try {
     const [g, m] = await Promise.all([fetch(`${base}?key=${C.apiKey}`), fetch(`${base}/dados/musicas?key=${C.apiKey}`)]);
     if (!slug || !g.ok) throw 0;
     G = obj((await g.json()).fields);
     if (m.ok) MUS = obj((await m.json()).fields || {}).lista || [];
+    /* escala e repertório deste mês e do próximo */
+    const hoje = new Date(), p2 = n => String(n).padStart(2, '0');
+    const meses = [0, 1].map(k => { const d = new Date(hoje.getFullYear(), hoje.getMonth() + k, 1); return d.getFullYear() + '-' + p2(d.getMonth() + 1); });
+    const pega = async id => { try { const r = await fetch(`${base}/dados/${id}?key=${C.apiKey}`); return r.ok ? (obj((await r.json()).fields || {}).lista || []) : []; } catch (e) { return []; } };
+    const [e1, e2, r1, r2] = await Promise.all([pega('escala-' + meses[0]), pega('escala-' + meses[1]), pega('repertorio-' + meses[0]), pega('repertorio-' + meses[1])]);
+    const hojeS = hoje.getFullYear() + '-' + p2(hoje.getMonth() + 1) + '-' + p2(hoje.getDate());
+    const k = x => x.data + '|' + x.culto, cultos = {};
+    [...e1, ...e2].forEach(x => { cultos[k(x)] = { data: x.data, culto: x.culto, hora: x.hora || '', folga: !!x.folga, p: x.p || [], itens: [] }; });
+    [...r1, ...r2].forEach(x => { const c = cultos[k(x)] = cultos[k(x)] || { data: x.data, culto: x.culto, hora: x.hora || '', folga: false, p: [] }; c.itens = (x.itens || []).filter(i => i.t); });
+    PROX = Object.values(cultos).filter(c => c.data >= hojeS && !c.folga && (c.p.length || c.itens.length)).sort((a, b) => (a.data + a.hora).localeCompare(b.data + b.hora));
   } catch (e) {
     app.innerHTML = '<div class="wrap erro"><h2>Igreja não encontrada</h2><p class="empty">Confira o endereço que você recebeu.</p></div>'; return;
   }
   document.documentElement.style.setProperty('--cor', G.cor || '#4f7a5c');
   document.title = (G.equipe || 'Equipe de Louvor') + ' · ' + (G.igreja || '');
   MUS.sort((a, b) => a.t.localeCompare(b.t, 'pt'));
+  const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  const fmtData = d => { const [a, m, dd] = d.split('-').map(Number); return DIAS[new Date(a, m - 1, dd).getDay()] + ', ' + String(dd).padStart(2, '0') + '/' + String(m).padStart(2, '0'); };
+  const agrupa = p => { const o = []; p.forEach(z => { const g = o.find(x => x[0] === z.f); g ? g[1].push(z.n) : o.push([z.f, [z.n]]); }); return o; };
+  const acha = t => MUS.find(m => norm(m.t) === norm(t));
+  const linksMus = t => { const m = acha(t) || { t }; const yt = m.yt || ('https://www.youtube.com/results?search_query=' + encodeURIComponent(t + ' ' + (m.art || ''))); const cc = m.cc || ('https://www.cifraclub.com.br/?q=' + encodeURIComponent(t + ' ' + (m.art || ''))); return ` <a href="${esc(yt)}" target="_blank" rel="noopener" title="YouTube">▶️</a> <a href="${esc(cc)}" target="_blank" rel="noopener" title="Cifra">🎸</a>`; };
+  const cartao = c => `<div class="card"><div class="eyebrow">${fmtData(c.data)} · ${esc(c.culto)}${c.hora ? ' · ' + esc(c.hora) : ''}</div>
+    ${c.itens.length ? `<ol class="lit">${c.itens.map(i => `<li><span class="art">${esc(i.mo)}:</span> <b>${esc(i.t)}</b>${linksMus(i.t)}</li>`).join('')}</ol>` : '<p class="empty">Repertório ainda não publicado.</p>'}
+    ${c.p.length ? `<p style="margin:10px 0 0;font-size:.9rem">${agrupa(c.p).map(([f, ns]) => `<b>${esc(f)}:</b> ${esc(ns.join(', '))}`).join(' · ')}</p>` : ''}</div>`;
   const momentos = [...new Set((G.liturgia || []).flatMap(c => c.momentos))].filter(m => !/am[eé]m/i.test(m));
   app.innerHTML = `
   <header><div class="wrap">${G.logo ? `<img src="${G.logo}" alt="Logo da ${esc(G.igreja)}">` : ''}
     <div><h1>${esc(G.equipe || 'Equipe de Louvor')}</h1><p>${esc(G.igreja)}${G.cidade ? ' · ' + esc(G.cidade) : ''}</p></div></div></header>
-  <nav><div class="wrap"><a href="#domingo">Próximo domingo</a><a href="#liturgia">Liturgia</a><a href="#repertorio">Repertório</a></div></nav>
+  <nav><div class="wrap"><a href="#domingo">Próximos cultos</a><a href="#escala">Escala</a><a href="#liturgia">Liturgia</a><a href="#repertorio">Repertório</a></div></nav>
   <main class="wrap">
-    <section id="domingo"><h2>Próximo domingo</h2>
-      <div class="card"><div class="eyebrow">Em breve</div><p style="margin:.3em 0 0">O repertório de cada domingo, a escala da equipe e o montador de cifras vão aparecer aqui.</p></div></section>
-    <section id="liturgia"><h2>Liturgia</h2><p class="lead">A ordem dos momentos em cada culto de domingo.</p>
-      <div class="grid">${(G.liturgia || []).map(c => `<div class="card"><div class="eyebrow">${esc(c.nome)}</div><ol class="lit">${c.momentos.map(m => `<li>${esc(m)}</li>`).join('')}</ol></div>`).join('')}</div></section>
+    <section id="domingo"><h2>Próximos cultos</h2><p class="lead">Quem está escalado e o que vamos cantar.</p>
+      ${PROX.length ? `<div class="grid">${PROX.slice(0, 3).map(cartao).join('')}</div>` : '<div class="card"><p class="empty" style="margin:0">A escala e o repertório dos próximos cultos ainda não foram publicados.</p></div>'}</section>
+    <section id="escala"><h2>Escala</h2><p class="lead">Escala deste mês e do próximo.</p>
+      ${PROX.some(c => c.p.length) ? `<div style="overflow-x:auto"><table><thead><tr><th>Culto</th><th>Equipe</th></tr></thead><tbody>${PROX.filter(c => c.p.length).map(c => `<tr><td><b>${fmtData(c.data)}</b><div class="art">${esc(c.culto)}${c.hora ? ' · ' + esc(c.hora) : ''}</div></td><td>${agrupa(c.p).map(([f, ns]) => `<span class="tag">${esc(f)}</span> ${esc(ns.join(', '))}`).join('<br>')}</td></tr>`).join('')}</tbody></table></div>` : '<div class="card"><p class="empty" style="margin:0">A escala ainda não foi publicada.</p></div>'}</section>
+    <section id="liturgia"><h2>Liturgia</h2><p class="lead">A ordem dos momentos em cada culto.</p>
+      <div class="grid">${(G.liturgia || []).map(c => `<div class="card"><div class="eyebrow">${esc(c.nome)}</div>${c.dia !== undefined && c.dia !== null ? `<p class="art" style="margin:2px 0 0">${DIAS[+c.dia]}${c.hora ? ' · ' + esc(c.hora) : ''}</p>` : ''}<ol class="lit">${c.momentos.map(m => `<li>${esc(m)}</li>`).join('')}</ol></div>`).join('')}</div></section>
     <section id="repertorio"><h2>Repertório</h2><p class="lead">Busque pelo nome ou artista e filtre pelo momento do culto. Cada música tem o vídeo de referência e a cifra.</p>
       <div class="tools"><input id="q" type="search" placeholder="Buscar música ou artista" aria-label="Buscar música ou artista">
         <select id="fm" aria-label="Filtrar por momento"><option value="">Todos os momentos</option>${momentos.map(m => `<option>${esc(m)}</option>`).join('')}</select></div>

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>Administração da igreja</title>
+<title>Painel do administrador master</title>
 <script src="config.js"></script>
 <style>
 :root{--bg:#f3f7f2;--surface:#fff;--ink:#1f2d24;--muted:#5d6f62;--green:#4f7a5c;--soft:#dfeadf;--line:#d6e2d6}
@@ -73,13 +73,25 @@ button:disabled{opacity:.55;cursor:default}
 .mus-wrap{max-height:60vh;overflow:auto;border:1px solid var(--line);border-radius:10px}
 .prog{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:8px}
 .prog i{display:block;height:100%;background:var(--green);width:0}
+.dia{border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px}
+.dia.folga{opacity:.55}
+.dia-h{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.dia-h b{font-size:1rem}
+.dia-h .cul{background:var(--soft);border-radius:999px;padding:2px 10px;font-size:.82rem;font-weight:700}
+.dia-h label{flex-direction:row;align-items:center;gap:6px;margin-left:auto;font-size:.82rem;color:var(--ink)}
+.slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.slots label{font-size:.78rem}
+.slots input{min-height:38px;padding:6px 8px}
+.fun{display:flex;gap:6px;align-items:center;margin:6px 0}
+.fun input.f-n{flex:1;max-width:300px}
+.fun input.f-q{width:70px}
 .link-final{font-size:1.05rem;word-break:break-all;background:var(--soft);padding:12px;border-radius:10px;margin:10px 0}
 @media (max-width:640px){.tab-mus thead{display:none}.tab-mus tr{display:block;border-bottom:2px solid var(--line);padding:6px 0}.tab-mus td{display:block;border:0}}
 </style>
 </head>
 <body>
 <div class="bar">
-  <h1>⛪ Administração da igreja</h1>
+  <h1>⛪ Painel do administrador master</h1>
   <span class="hint" id="who"></span>
   <button type="button" class="hidden" id="sair">Sair</button>
 </div>
@@ -87,7 +99,7 @@ button:disabled{opacity:.55;cursor:default}
 
 <div class="card hidden" id="v-login">
   <h2>Bem-vindo(a)</h2>
-  <p class="lead">Esta área é para administradores gerais convidados. Use o mesmo e-mail que recebeu o convite.</p>
+  <p class="lead">Esta área é para administradores master autorizados pelo Pr. Atos. Use o mesmo e-mail que recebeu o convite.</p>
   <div class="row" style="margin-bottom:14px">
     <button type="button" class="primary" data-tab="entrar">Entrar</button>
     <button type="button" data-tab="cadastro">Criar meu cadastro</button>
@@ -99,7 +111,7 @@ button:disabled{opacity:.55;cursor:default}
   </form>
   <form class="form hidden" id="f-cad">
     <label>Nome completo<input id="cn" autocomplete="name" required></label>
-    <label>E-mail (o do convite)<input type="email" id="ce" autocomplete="email" required></label>
+    <label>E-mail (o que foi autorizado)<input type="email" id="ce" autocomplete="email" required></label>
     <label>Senha (mínimo 6 caracteres)<input type="password" id="cs" autocomplete="new-password" required minlength="6"></label>
     <button class="primary" type="submit">Criar cadastro</button>
   </form>
@@ -108,16 +120,19 @@ button:disabled{opacity:.55;cursor:default}
 
 <div class="card hidden" id="v-negado">
   <h2>Acesso ainda não liberado</h2>
-  <p class="lead">Este e-mail não está na lista de administradores gerais. Fale com o Pr. Atos para liberar.</p>
+  <p class="lead">Este e-mail ainda não foi autorizado como administrador master. Fale com o Pr. Atos para liberar.</p>
 </div>
 
 <div id="v-app" class="hidden">
   <ol class="steps" id="steps">
     <li><button type="button" data-p="1">Igreja e equipe</button></li>
     <li><button type="button" data-p="2">Logo e cores</button></li>
-    <li><button type="button" data-p="3">Liturgia</button></li>
+    <li><button type="button" data-p="3">Cultos e liturgia</button></li>
     <li><button type="button" data-p="4">Músicas</button></li>
-    <li><button type="button" data-p="5">Pronto</button></li>
+    <li><button type="button" data-p="5">Equipe</button></li>
+    <li><button type="button" data-p="6">Escala</button></li>
+    <li><button type="button" data-p="7">Repertório</button></li>
+    <li><button type="button" data-p="8">Site</button></li>
   </ol>
 
   <!-- 1 -->
@@ -163,8 +178,8 @@ button:disabled{opacity:.55;cursor:default}
 
   <!-- 3 -->
   <div class="card passo hidden" data-p="3">
-    <h2>3. Liturgia</h2>
-    <p class="lead">Monte os cultos de domingo e a ordem dos momentos de cada um. Os momentos que você criar aqui também servem para classificar as músicas no próximo passo.</p>
+    <h2>3. Cultos e liturgia</h2>
+    <p class="lead">Crie um culto para cada vez na semana em que a equipe precisa de escala (por exemplo: domingo de manhã, domingo à noite, quarta-feira). Para cada um, escolha o dia, o horário e a ordem dos momentos. Os momentos também servem para classificar as músicas.</p>
     <div id="cultos"></div>
     <button type="button" id="add-culto">+ Adicionar culto</button>
     <div class="nav"><button type="button" data-ir="2">← Voltar</button><button type="button" class="primary" data-salvar="3">Salvar e continuar →</button></div>
@@ -197,11 +212,45 @@ button:disabled{opacity:.55;cursor:default}
 
   <!-- 5 -->
   <div class="card passo hidden" data-p="5">
-    <h2>5. Pronto!</h2>
-    <p class="lead">O site da sua equipe já está no ar. Compartilhe o endereço com a equipe:</p>
+    <h2>5. Equipe e funções</h2>
+    <p class="lead">Liste as funções de cada culto (e quantas pessoas cada uma precisa) e as pessoas da equipe. Marque o que cada pessoa faz: na escala, cada função sugere só quem faz aquilo.</p>
+    <h3 style="margin:8px 0">Funções</h3>
+    <div id="funcoes"></div>
+    <button type="button" class="small" id="add-funcao">+ Função</button>
+    <h3 style="margin:18px 0 8px">Pessoas da equipe <span class="hint" id="memb-cont"></span></h3>
+    <div class="mus-wrap"><table class="tab-mus"><thead><tr><th style="width:32%">Nome</th><th>O que faz</th><th></th></tr></thead><tbody id="memb-body"></tbody></table></div>
+    <button type="button" class="small" id="add-memb" style="margin-top:8px">+ Pessoa</button>
+    <div class="nav"><button type="button" data-ir="4">← Voltar</button><button type="button" class="primary" data-salvar="5">Salvar e continuar →</button></div>
+    <div class="m"></div>
+  </div>
+
+  <!-- 6 -->
+  <div class="card passo hidden" data-p="6">
+    <h2>6. Escala</h2>
+    <p class="lead">Escolha o mês. O painel cria uma linha para cada culto do mês, conforme os dias da semana do passo 3. Preencha quem fica em cada função. Marque “Sem culto” nos dias em que não haverá culto.</p>
+    <div class="row"><label style="max-width:220px">Mês<input type="month" id="esc-mes"></label><button type="button" id="esc-limpar" class="small">Apagar a escala deste mês</button></div>
+    <div id="esc-lista" style="margin-top:14px"></div>
+    <div class="nav"><button type="button" data-ir="5">← Voltar</button><button type="button" class="primary" data-salvar="6">Salvar escala</button></div>
+    <div class="m"></div>
+  </div>
+
+  <!-- 7 -->
+  <div class="card passo hidden" data-p="7">
+    <h2>7. Repertório</h2>
+    <p class="lead">Escolha o mês e, em cada culto, a música de cada momento. Comece a digitar para ver as músicas da lista (as do momento aparecem primeiro). Pode escrever um hino ou outra música também. Deixe em branco quando não houver música.</p>
+    <div class="row"><label style="max-width:220px">Mês<input type="month" id="rep-mes"></label></div>
+    <div id="rep-lista" style="margin-top:14px"></div>
+    <div class="nav"><button type="button" data-ir="6">← Voltar</button><button type="button" class="primary" data-salvar="7">Salvar repertório</button></div>
+    <div class="m"></div>
+  </div>
+
+  <!-- 8 -->
+  <div class="card passo hidden" data-p="8">
+    <h2>8. Site da equipe</h2>
+    <p class="lead">O site da sua equipe já está no ar, com a escala e o repertório que você salvar. Compartilhe o endereço:</p>
     <div class="link-final" id="link-final"></div>
     <div class="row"><button type="button" class="primary" id="copiar-link">🔗 Copiar endereço</button><a class="btn" id="abrir-link" target="_blank">Abrir o site</a></div>
-    <p class="hint" style="margin-top:16px">Você pode voltar aqui quando quiser para trocar a logo, as cores, a liturgia ou as músicas. Tudo é salvo na hora.</p>
+    <p class="hint" style="margin-top:16px">Volte aqui quando quiser para mudar qualquer coisa: logo, cores, cultos, músicas, equipe, escala ou repertório. Cada aba tem o seu botão de salvar.</p>
   </div>
 </div>
 
@@ -239,7 +288,7 @@ $('#f-cad').onsubmit = async e => {
   try {
     const cred = await createUserWithEmailAndPassword(auth, $('#ce').value.trim().toLowerCase(), $('#cs').value);
     await updateProfile(cred.user, { displayName: $('#cn').value.trim() });
-    if (!(await liberado(cred.user))) { await deleteUser(cred.user).catch(() => signOut(auth)); msg('#login-msg', 'Este e-mail não está na lista de convidados. Use o e-mail que recebeu o convite.', 'err'); return; }
+    if (!(await liberado(cred.user))) { await deleteUser(cred.user).catch(() => signOut(auth)); msg('#login-msg', 'Este e-mail ainda não foi autorizado como administrador master. Fale com o Pr. Atos.', 'err'); return; }
     msg('#login-msg', '');
     entrou(cred.user);
   } catch (err) { msg('#login-msg', erroPt(err), 'err'); }
@@ -259,9 +308,13 @@ async function entrou(u) {
 
 /* ---------- dados da igreja ---------- */
 const LITURGIA_PADRAO = [
-  { nome: 'Manhã', momentos: ['Hino', 'Música nova'] },
-  { nome: 'Noite', momentos: ['Prelúdio', 'Adoração', 'Confissão', 'Louvor', 'Louvor', 'Pós-pregação', 'Tríplice Amém'] }
+  { nome: 'Manhã', dia: 0, hora: '09:00', momentos: ['Hino', 'Música nova'] },
+  { nome: 'Noite', dia: 0, hora: '19:00', momentos: ['Prelúdio', 'Adoração', 'Confissão', 'Louvor', 'Louvor', 'Pós-pregação', 'Tríplice Amém'] }
 ];
+const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+const FUNCOES_PADRAO = [{ nome: 'Ministro(a)', qtd: 1 }, { nome: 'Vocal', qtd: 2 }, { nome: 'Violão', qtd: 1 }, { nome: 'Teclado', qtd: 1 }, { nome: 'Baixo', qtd: 1 }, { nome: 'Bateria', qtd: 1 }, { nome: 'Som e mídia', qtd: 1 }];
+let EQ = { funcoes: FUNCOES_PADRAO.map(f => ({ ...f })), membros: [] };
+let ESC = { mes: '', lista: [] }, REP = { mes: '', lista: [] };
 const CORES = ['#4f7a5c', '#2f5d8a', '#6b3fa0', '#a3413b', '#b8742a', '#1f7a7a', '#3a3a3a', '#8a2f5d'];
 let G = { slug: '', igreja: '', equipe: 'Equipe de Louvor', cidade: '', logo: '', cor: '#4f7a5c', liturgia: LITURGIA_PADRAO, existe: false };
 let MUS = [];
@@ -274,16 +327,19 @@ async function carregaIgreja(u) {
       const d = q.docs[0]; G = { ...G, ...d.data(), slug: d.id, existe: true };
       const m = await getDoc(doc(db, 'igrejas', d.id, 'dados', 'musicas'));
       MUS = m.exists() ? (m.data().lista || []) : [];
+      const e = await getDoc(doc(db, 'igrejas', d.id, 'dados', 'equipe'));
+      if (e.exists()) EQ = { funcoes: e.data().funcoes || [], membros: e.data().membros || [] };
     }
   } catch (e) { console.warn(e); }
   preenche();
-  vaiPara(G.existe ? (MUS.length ? 5 : 4) : 1);
+  vaiPara(G.existe ? (MUS.length ? 6 : 4) : 1);
 }
 function preenche() {
   $('#i-igreja').value = G.igreja || ''; $('#i-equipe').value = G.equipe || ''; $('#i-cidade').value = G.cidade || '';
   $('#i-slug').value = G.slug || ''; $('#i-slug').disabled = G.existe; mostraSlug();
   $('#i-cor').value = G.cor || '#4f7a5c'; desenhaCores(); desenhaLogo(); preview();
-  desenhaCultos(); desenhaMus();
+  desenhaCultos(); desenhaMus(); desenhaEquipe();
+  if (!$('#esc-mes').value) $('#esc-mes').value = $('#rep-mes').value = mesPadrao();
   $('#link-final').textContent = G.slug ? linkIgreja(G.slug) : ''; $('#abrir-link').href = G.slug ? linkIgreja(G.slug) : '#';
 }
 async function salvaIgreja(extra) {
@@ -301,6 +357,7 @@ function vaiPara(n) {
   $$('.passo').forEach(p => p.classList.toggle('hidden', +p.dataset.p !== n));
   $$('#steps button').forEach(b => { b.classList.toggle('on', +b.dataset.p === n); b.classList.toggle('done', G.existe && +b.dataset.p < n); });
   scrollTo({ top: 0, behavior: 'smooth' });
+  if (n === 6) carregaMes('esc'); if (n === 7) carregaMes('rep');
 }
 $$('#steps button').forEach(b => b.onclick = () => { if (!G.existe && +b.dataset.p > 1) { msg($('.passo[data-p="1"] .m'), 'Salve o passo 1 primeiro.', 'err'); return; } vaiPara(+b.dataset.p); });
 $$('[data-ir]').forEach(b => b.onclick = () => vaiPara(+b.dataset.ir));
@@ -318,6 +375,10 @@ $$('[data-salvar]').forEach(b => b.onclick = async () => {
     if (n === 2) await salvaIgreja();
     if (n === 3) { lerCultos(); if (!G.liturgia.length) throw new Error('Crie pelo menos um culto.'); await salvaIgreja(); desenhaMus(); }
     if (n === 4) { lerMus(); await setDoc(doc(db, 'igrejas', G.slug, 'dados', 'musicas'), { lista: MUS, atualizado: serverTimestamp() }); }
+    if (n === 3 || n === 5) { ESC.mes = REP.mes = ''; }
+    if (n === 5) { lerEquipe(); await setDoc(doc(db, 'igrejas', G.slug, 'dados', 'equipe'), { ...EQ, atualizado: serverTimestamp() }); }
+    if (n === 6) { lerEsc(); await setDoc(doc(db, 'igrejas', G.slug, 'dados', 'escala-' + ESC.mes), { lista: ESC.lista, atualizado: serverTimestamp() }); msg(m, 'Escala de ' + nomeMes(ESC.mes) + ' salva. Ela já aparece no site.', 'ok'); b.disabled = false; return; }
+    if (n === 7) { lerRep(); await setDoc(doc(db, 'igrejas', G.slug, 'dados', 'repertorio-' + REP.mes), { lista: REP.lista, atualizado: serverTimestamp() }); msg(m, 'Repertório de ' + nomeMes(REP.mes) + ' salvo. Ele já aparece no site.', 'ok'); b.disabled = false; return; }
     msg(m, ''); vaiPara(n + 1);
   } catch (e) { msg(m, esc(e.message || e.code), 'err'); }
   b.disabled = false;
@@ -358,6 +419,8 @@ function desenhaCultos() {
   $('#cultos').innerHTML = G.liturgia.map((c, i) => `
     <div class="culto" data-c="${i}">
       <div class="culto-h"><label>Nome do culto<input class="c-nome" value="${esc(c.nome)}" placeholder="Ex.: Manhã"></label>
+        <label style="flex:0 0 150px;min-width:130px">Dia<select class="c-dia">${DIAS.map((d, k) => `<option value="${k}"${(c.dia ?? 0) === k ? ' selected' : ''}>${d}</option>`).join('')}</select></label>
+        <label style="flex:0 0 120px;min-width:110px">Horário<input type="time" class="c-hora" value="${esc(c.hora || '')}"></label>
         <button type="button" class="small" data-del-culto="${i}">Remover culto</button></div>
       ${c.momentos.map((m, j) => `<div class="mom"><span class="hint">${j + 1}.</span><input class="c-mom" value="${esc(m)}" placeholder="Momento">
         <button type="button" class="small" data-up="${i}:${j}" aria-label="Subir">↑</button><button type="button" class="small" data-down="${i}:${j}" aria-label="Descer">↓</button><button type="button" class="small" data-del="${i}:${j}" aria-label="Remover">✕</button></div>`).join('')}
@@ -371,9 +434,9 @@ function desenhaCultos() {
   mexe('down', (a, j) => { if (j < a.length - 1) [a[j + 1], a[j]] = [a[j], a[j + 1]]; });
 }
 function lerCultos() {
-  G.liturgia = $$('#cultos .culto').map(c => ({ nome: c.querySelector('.c-nome').value.trim() || 'Culto', momentos: [...c.querySelectorAll('.c-mom')].map(x => x.value.trim()).filter(Boolean) }));
+  G.liturgia = $$('#cultos .culto').map(c => ({ nome: c.querySelector('.c-nome').value.trim() || 'Culto', dia: +c.querySelector('.c-dia').value, hora: c.querySelector('.c-hora').value, momentos: [...c.querySelectorAll('.c-mom')].map(x => x.value.trim()).filter(Boolean) }));
 }
-$('#add-culto').onclick = () => { lerCultos(); G.liturgia.push({ nome: '', momentos: ['Louvor'] }); desenhaCultos(); };
+$('#add-culto').onclick = () => { lerCultos(); G.liturgia.push({ nome: '', dia: 3, hora: '19:30', momentos: ['Louvor'] }); desenhaCultos(); };
 
 /* passo 4: músicas */
 const momentosUnicos = () => [...new Set(G.liturgia.flatMap(c => c.momentos))].filter(m => !/am[eé]m/i.test(m));
@@ -463,7 +526,105 @@ $('#buscar-yt').onclick = async () => {
   if (ok) msg('#mus-msg', `Encontrei ${ok} vídeo(s). Toque em ▶ para conferir e cole outro link se preferir outra versão. Não esqueça de salvar.`, 'ok');
 };
 
-/* passo 5 */
+/* passo 5: equipe */
+function desenhaEquipe() {
+  $('#funcoes').innerHTML = EQ.funcoes.map((f, i) => `<div class="fun" data-f="${i}"><input class="f-n" value="${esc(f.nome)}" placeholder="Função"><label style="flex-direction:row;align-items:center;gap:4px">Pessoas<input type="number" class="f-q" min="1" max="10" value="${f.qtd || 1}"></label><button type="button" class="small" data-rmf="${i}" aria-label="Remover">✕</button></div>`).join('');
+  const nomes = EQ.funcoes.map(f => f.nome).filter(Boolean);
+  $('#memb-body').innerHTML = EQ.membros.map((p, i) => `<tr data-i="${i}"><td><input class="p-n" value="${esc(p.nome)}" placeholder="Nome"></td>
+    <td><div class="moms">${nomes.map(x => `<label><input type="checkbox" class="p-f" value="${esc(x)}"${(p.funcoes || []).includes(x) ? ' checked' : ''}>${esc(x)}</label>`).join('')}</div></td>
+    <td><button type="button" class="small" data-rmp="${i}" aria-label="Remover">✕</button></td></tr>`).join('') || '<tr><td colspan="3" class="hint" style="padding:16px">Ninguém ainda. Toque em “+ Pessoa”.</td></tr>';
+  $('#memb-cont').textContent = EQ.membros.length ? `(${EQ.membros.length})` : '';
+  $$('[data-rmf]').forEach(b => b.onclick = () => { lerEquipe(); EQ.funcoes.splice(+b.dataset.rmf, 1); desenhaEquipe(); });
+  $$('[data-rmp]').forEach(b => b.onclick = () => { lerEquipe(); EQ.membros.splice(+b.dataset.rmp, 1); desenhaEquipe(); });
+  $$('.f-n').forEach(x => x.onchange = () => { lerEquipe(); desenhaEquipe(); });
+}
+function lerEquipe() {
+  const antigos = EQ.funcoes.map(f => f.nome);
+  const funcoes = $$('#funcoes .fun').map(d => ({ nome: d.querySelector('.f-n').value.trim(), qtd: Math.max(1, Math.min(10, +d.querySelector('.f-q').value || 1)) }));
+  const renomeia = x => { const k = antigos.indexOf(x); return k >= 0 && funcoes[k] ? funcoes[k].nome : x; };
+  EQ.membros = $$('#memb-body tr[data-i]').map(tr => ({ nome: tr.querySelector('.p-n').value.trim(), funcoes: [...tr.querySelectorAll('.p-f:checked')].map(x => renomeia(x.value)).filter(Boolean) })).filter(p => p.nome);
+  EQ.funcoes = funcoes.filter(f => f.nome);
+}
+$('#add-funcao').onclick = () => { lerEquipe(); EQ.funcoes.push({ nome: '', qtd: 1 }); desenhaEquipe(); $$('.f-n').pop().focus(); };
+$('#add-memb').onclick = () => { lerEquipe(); EQ.membros.push({ nome: '', funcoes: [] }); desenhaEquipe(); $$('.p-n').pop().focus(); };
+
+/* datas do mês conforme os cultos da semana */
+const pad = n => String(n).padStart(2, '0');
+const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+const nomeMes = ym => { const [a, m] = ym.split('-'); return MESES[+m - 1] + ' de ' + a; };
+function mesPadrao() { const d = new Date(); if (d.getDate() > 20) d.setMonth(d.getMonth() + 1, 1); return d.getFullYear() + '-' + pad(d.getMonth() + 1); }
+function cultosDoMes(ym) {
+  const [a, m] = ym.split('-').map(Number), out = [];
+  for (let d = 1; d <= new Date(a, m, 0).getDate(); d++) {
+    const dw = new Date(a, m - 1, d).getDay();
+    G.liturgia.forEach(c => { if ((c.dia ?? 0) === dw) out.push({ data: `${a}-${pad(m)}-${pad(d)}`, culto: c.nome, hora: c.hora || '' }); });
+  }
+  return out.sort((x, y) => (x.data + x.hora).localeCompare(y.data + y.hora));
+}
+const fmtData = d => { const [a, m, dd] = d.split('-').map(Number); return DIAS[new Date(a, m - 1, dd).getDay()] + ', ' + pad(dd) + '/' + pad(m); };
+const chave = x => x.data + '|' + x.culto;
+async function carregaMes(tipo) {
+  const ym = $('#' + tipo + '-mes').value || mesPadrao(); $('#' + tipo + '-mes').value = ym;
+  const alvo = tipo === 'esc' ? ESC : REP;
+  if (alvo.mes === ym) return tipo === 'esc' ? desenhaEsc() : desenhaRep();
+  $('#' + tipo + '-lista').innerHTML = '<p class="hint">Carregando…</p>';
+  let salvo = [];
+  try { const r = await getDoc(doc(db, 'igrejas', G.slug, 'dados', (tipo === 'esc' ? 'escala-' : 'repertorio-') + ym)); if (r.exists()) salvo = r.data().lista || []; } catch (e) {}
+  const porChave = Object.fromEntries(salvo.map(x => [chave(x), x]));
+  alvo.mes = ym;
+  alvo.lista = cultosDoMes(ym).map(x => ({ ...x, ...(porChave[chave(x)] || {}), hora: x.hora }));
+  /* mantém o que já estava salvo mesmo se o culto mudou de dia */
+  salvo.forEach(x => { if (!alvo.lista.some(y => chave(y) === chave(x))) alvo.lista.push(x); });
+  alvo.lista.sort((x, y) => (x.data + (x.hora || '')).localeCompare(y.data + (y.hora || '')));
+  tipo === 'esc' ? desenhaEsc() : desenhaRep();
+}
+$('#esc-mes').onchange = () => { lerEsc(); carregaMes('esc'); };
+$('#rep-mes').onchange = () => { lerRep(); carregaMes('rep'); };
+
+/* passo 6: escala */
+function slotsEscala() { const s = []; EQ.funcoes.forEach(f => { for (let k = 0; k < (f.qtd || 1); k++) s.push({ f: f.nome, rot: f.nome + ((f.qtd || 1) > 1 ? ' ' + (k + 1) : '') }); }); return s; }
+function desenhaEsc() {
+  const slots = slotsEscala();
+  if (!G.liturgia.length) { $('#esc-lista').innerHTML = '<p class="hint">Crie os cultos no passo 3 primeiro.</p>'; return; }
+  if (!slots.length) { $('#esc-lista').innerHTML = '<p class="hint">Cadastre as funções no passo 5 primeiro.</p>'; return; }
+  const dls = EQ.funcoes.map((f, i) => { const quem = EQ.membros.filter(p => (p.funcoes || []).includes(f.nome)); return `<datalist id="dl-f${i}">${(quem.length ? quem : EQ.membros).map(p => `<option value="${esc(p.nome)}">`).join('')}</datalist>`; }).join('');
+  $('#esc-lista').innerHTML = dls + (ESC.lista.map((x, i) => {
+    const p = x.p || [];
+    return `<div class="dia${x.folga ? ' folga' : ''}" data-i="${i}"><div class="dia-h"><b>${fmtData(x.data)}</b><span class="cul">${esc(x.culto)}${x.hora ? ' · ' + x.hora : ''}</span>
+      <label><input type="checkbox" class="e-folga"${x.folga ? ' checked' : ''}> Sem culto</label></div>
+      <div class="slots">${slots.map((s, k) => { const fi = EQ.funcoes.findIndex(f => f.nome === s.f); const v = (p.find(z => z.k === s.rot) || {}).n || ''; return `<label>${esc(s.rot)}<input class="e-n" data-k="${esc(s.rot)}" data-f="${esc(s.f)}" list="dl-f${fi}" value="${esc(v)}" placeholder="—"></label>`; }).join('')}</div></div>`;
+  }).join('') || '<p class="hint">Nenhum culto neste mês.</p>');
+  $$('.e-folga').forEach(c => c.onchange = () => c.closest('.dia').classList.toggle('folga', c.checked));
+}
+function lerEsc() {
+  $$('#esc-lista .dia').forEach(d => {
+    const x = ESC.lista[+d.dataset.i]; if (!x) return;
+    x.folga = d.querySelector('.e-folga').checked;
+    x.p = [...d.querySelectorAll('.e-n')].map(i => ({ k: i.dataset.k, f: i.dataset.f, n: i.value.trim() })).filter(z => z.n);
+  });
+}
+$('#esc-limpar').onclick = () => { if (!ESC.lista.length) return; ESC.lista.forEach(x => { x.p = []; x.folga = false; }); desenhaEsc(); msg($('.passo[data-p="6"] .m'), 'Campos limpos. Toque em “Salvar escala” para confirmar.', 'ok'); };
+
+/* passo 7: repertório */
+const momentosDe = nome => (G.liturgia.find(c => c.nome === nome) || { momentos: [] }).momentos;
+function desenhaRep() {
+  if (!G.liturgia.length) { $('#rep-lista').innerHTML = '<p class="hint">Crie os cultos no passo 3 primeiro.</p>'; return; }
+  const moms = [...new Set(G.liturgia.flatMap(c => c.momentos))];
+  const dls = moms.map((mo, i) => { const sug = MUS.filter(m => (m.m || []).includes(mo)), resto = MUS.filter(m => !(m.m || []).includes(mo)); return `<datalist id="dl-m${i}">${[...sug, ...resto].map(m => `<option value="${esc(m.t)}">${esc(m.art || '')}</option>`).join('')}</datalist>`; }).join('');
+  $('#rep-lista').innerHTML = dls + (REP.lista.map((x, i) => {
+    const its = x.itens || [];
+    return `<div class="dia" data-i="${i}"><div class="dia-h"><b>${fmtData(x.data)}</b><span class="cul">${esc(x.culto)}${x.hora ? ' · ' + x.hora : ''}</span></div>
+      <div class="slots">${momentosDe(x.culto).map((mo, k) => { const v = (its.find(z => z.k === k) || {}).t || ''; return `<label>${k + 1}. ${esc(mo)}<input class="r-t" data-mo="${esc(mo)}" data-k="${k}" list="dl-m${moms.indexOf(mo)}" value="${esc(v)}" placeholder="—"></label>`; }).join('')}</div></div>`;
+  }).join('') || '<p class="hint">Nenhum culto neste mês.</p>');
+}
+function lerRep() {
+  $$('#rep-lista .dia').forEach(d => {
+    const x = REP.lista[+d.dataset.i]; if (!x) return;
+    x.itens = [...d.querySelectorAll('.r-t')].map(i => ({ k: +i.dataset.k, mo: i.dataset.mo, t: i.value.trim() }));
+  });
+}
+
+/* passo 8 */
 $('#copiar-link').onclick = async () => { try { await navigator.clipboard.writeText(linkIgreja(G.slug)); $('#copiar-link').textContent = '✅ Copiado'; } catch (e) { prompt('Copie o endereço:', linkIgreja(G.slug)); } };
 </script>
 </body>
