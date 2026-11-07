@@ -403,10 +403,10 @@ function enviarParaMontador(){
   var h = document.querySelector('h1'), a = h && h.nextElementSibling, tom = '';
   [].slice.call(document.querySelectorAll('span,b,a,div,p')).some(function(e){ var m = e.textContent.match(/^\s*Tom:?\s*([A-G][#b]?m?)\s*$/); if(m){ tom = m[1]; return true; } return false; });
   var d = {t: h ? h.textContent.trim() : document.title, a: a ? a.textContent.replace(/\s+/g,' ').trim() : '', tom: tom, u: location.href.split('#')[0].split('?')[0], x: p.textContent};
-  var url = 'https://atosslopess02-lab.github.io/louvor-4ipbgv/montador.html#cc=' + encodeURIComponent(JSON.stringify(d));
+  var url = '__MONTADOR__#cc=' + encodeURIComponent(JSON.stringify(d));
   var w = window.open(url, 'montador-cifras'); if(!w) location.href = url;
 }
-const BOOKMARKLET = 'javascript:' + encodeURIComponent('(' + enviarParaMontador.toString() + ')();void 0');
+const BOOKMARKLET = 'javascript:' + encodeURIComponent('(' + enviarParaMontador.toString().replace('__MONTADOR__', location.origin + location.pathname) + ')();void 0');
 $('#bm-link').href = BOOKMARKLET;
 $('#bm-link').addEventListener('click', e => { e.preventDefault(); toast('Arraste este botão para a barra de favoritos'); });
 $('#bm-copy').onclick = async () => {
