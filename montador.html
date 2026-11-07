@@ -45,6 +45,8 @@ h2{font-size:1rem;letter-spacing:.08em;text-transform:uppercase;color:var(--gree
 .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-weight:700;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
 @media print{.bar,.intro,.editor,h2.ed,.toast{display:none!important}body{background:#fff;color:#000}#preview{border:0;padding:0}.ch{color:#ff7a00;-webkit-print-color-adjust:exact;print-color-adjust:exact}.song{break-before:page}.song.first{break-before:auto}}
+.bm summary{cursor:pointer}.bm p{margin:10px 0}.bm-link{display:inline-block;background:var(--green);color:#fff!important;text-decoration:none;font-weight:700;border-radius:999px;padding:6px 14px;cursor:grab}
+.card.got{outline:3px solid var(--chord);outline-offset:2px}
 </style>
 </head>
 <body>
@@ -59,12 +61,24 @@ h2{font-size:1rem;letter-spacing:.08em;text-transform:uppercase;color:var(--gree
     <ol>
       <li>Escolha o domingo e toque em <b>Puxar repertório do site</b>: as músicas entram na ordem da liturgia.</li>
       <li>Para trocar ou incluir uma música, escolha o momento e toque no campo <b>Música</b>: aparece a lista do repertório daquele momento (ou <b>Todas as músicas</b>). No momento <b>Hino</b> aparecem todos os hinos do Novo Cântico.</li>
-      <li>Em cada música, toque em <b>Abrir no Cifra Club</b>, copie a cifra inteira e cole no campo da música.</li>
+      <li>Em cada música, toque em <b>Abrir no Cifra Club</b> e, na página da cifra, toque no favorito <b>📥 Enviar para o Montador</b> (veja abaixo como instalar). A cifra chega aqui sozinha, na música certa. Se preferir, ainda dá para copiar e colar.</li>
       <li>Escolha o <b>tom desejado</b>. Os acordes são transpostos sozinhos.</li>
       <li>Confira a prévia e toque em <b>Baixar PDF</b>.</li>
     </ol>
     <div class="hint" style="margin-top:6px">Tudo fica só neste aparelho. Nada do que você cola é enviado para a internet.</div>
   </div>
+
+  <details class="intro bm" id="bm-box">
+    <summary><b>📥 Instalar o botão "Enviar para o Montador"</b> (uma vez em cada aparelho)</summary>
+    <p><b>No computador:</b> arraste este botão para a barra de favoritos do navegador: <a class="bm-link" id="bm-link" href="#">📥 Enviar para o Montador</a></p>
+    <p><b>No celular:</b> toque em <button type="button" class="small" id="bm-copy">Copiar código do botão</button> e depois:</p>
+    <ol>
+      <li>Adicione qualquer página aos favoritos (pode ser esta).</li>
+      <li>Edite esse favorito: no nome, escreva <b>Enviar para o Montador</b>; no endereço (URL), apague tudo e cole o código copiado. Salve.</li>
+      <li>Na página de uma cifra no Cifra Club: no <b>Chrome</b>, toque na barra de endereço, digite <b>Enviar</b> e toque no favorito que aparece; no <b>Safari</b> do iPhone, abra os Favoritos e toque nele.</li>
+    </ol>
+    <div class="hint">O botão só leva a cifra da página que você está vendo para este montador, no seu aparelho. Nada é publicado no site.</div>
+  </details>
 
   <div class="editor">
     <div class="row">
@@ -356,7 +370,54 @@ $('#pdf').onclick = async () => {
   toast('PDF baixado');
 };
 
-load(); render(); getSite().then(() => render()).catch(() => {});
+/* ---------- botão "Enviar para o Montador" ---------- */
+/* roda na página da cifra do Cifra Club: pega título, artista, tom e o texto da cifra e abre o montador com eles */
+function enviarParaMontador(){
+  var pres = [].slice.call(document.querySelectorAll('pre')).sort(function(a,b){ return b.textContent.length - a.textContent.length; });
+  var p = pres[0];
+  if(!/cifraclub\.com\.br$/.test(location.hostname) || !p || p.textContent.trim().length < 20){ alert('Abra a página de uma cifra no Cifra Club e toque de novo no favorito.'); return; }
+  var h = document.querySelector('h1'), a = h && h.nextElementSibling, tom = '';
+  [].slice.call(document.querySelectorAll('span,b,a,div,p')).some(function(e){ var m = e.textContent.match(/^\s*Tom:?\s*([A-G][#b]?m?)\s*$/); if(m){ tom = m[1]; return true; } return false; });
+  var d = {t: h ? h.textContent.trim() : document.title, a: a ? a.textContent.replace(/\s+/g,' ').trim() : '', tom: tom, u: location.href.split('#')[0].split('?')[0], x: p.textContent};
+  var url = 'https://atosslopess02-lab.github.io/louvor-4ipbgv/montador.html#cc=' + encodeURIComponent(JSON.stringify(d));
+  var w = window.open(url, 'montador-cifras'); if(!w) location.href = url;
+}
+const BOOKMARKLET = 'javascript:' + encodeURIComponent('(' + enviarParaMontador.toString() + ')();void 0');
+$('#bm-link').href = BOOKMARKLET;
+$('#bm-link').addEventListener('click', e => { e.preventDefault(); toast('Arraste este botão para a barra de favoritos'); });
+$('#bm-copy').onclick = async () => {
+  try{ await navigator.clipboard.writeText(BOOKMARKLET); toast('Código copiado. Agora cole no endereço do favorito.'); }
+  catch(e){ prompt('Copie o código abaixo:', BOOKMARKLET); }
+};
+/* recebe a cifra enviada pelo botão */
+const normT = t => String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const hinoNum = t => { const m = normT(t).match(/^hino (?:n ?o? ?)?(\d+)/); return m ? +m[1] : null; };
+function recebeCifra(){
+  if(!location.hash.startsWith('#cc=')) return;
+  let d; try{ d = JSON.parse(decodeURIComponent(location.hash.slice(4))); }catch(e){ return; }
+  history.replaceState(null, '', location.pathname + location.search);
+  if(!d || !d.x) return;
+  const p = parsePaste(d.x);
+  const tom = d.tom || p.tom;
+  const u = String(d.u||'').replace(/\/+$/,''), nt = normT(d.t), hn = hinoNum(d.t);
+  let i = state.songs.findIndex(s => s.cc && s.cc.replace(/\/+$/,'') === u);
+  if(i < 0) i = state.songs.findIndex(s => hn !== null && hinoNum(s.titulo) === hn);
+  if(i < 0) i = state.songs.findIndex(s => s.titulo && (normT(s.titulo) === nt || (nt && (normT(s.titulo).includes(nt) || nt.includes(normT(s.titulo))))));
+  if(i < 0 && state.songs.length){ const v = state.songs.findIndex(s => !s.titulo && !s.texto); if(v >= 0) i = v; }
+  let s;
+  if(i < 0){ const last = state.songs[state.songs.length-1]; s = blank(last ? last.culto : 'Noite', 'Louvor'); state.songs.push(s); i = state.songs.length - 1; }
+  else s = state.songs[i];
+  if(!s.titulo) s.titulo = d.t;
+  if(!s.artista) s.artista = d.a;
+  s.texto = p.text; s.tomOrig = tom || s.tomOrig; s.cc = d.u || s.cc;
+  save(); render();
+  const card = document.querySelector(`.card[data-i="${i}"]`);
+  if(card){ card.classList.add('got'); card.scrollIntoView({behavior:'smooth', block:'center'}); setTimeout(()=>card.classList.remove('got'), 4000); }
+  toast(`Cifra recebida: ${s.titulo}${tom ? ' (tom ' + tom + ')' : ''}`);
+}
+window.addEventListener('hashchange', recebeCifra);
+
+load(); render(); recebeCifra(); getSite().then(() => render()).catch(() => {});
 </script>
 </body>
 </html>
