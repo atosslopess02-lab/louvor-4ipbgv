@@ -15,6 +15,8 @@ window.carregaRepertoriosOnline = async function (DATA) {
       const date = doc.name.split('/').pop();
       let v; try { v = JSON.parse(doc.fields.json.stringValue); } catch (e) { continue; }
       if (!v || !Array.isArray(v.cultos)) continue;
+      /* momentos marcados como "Sem música" no painel não aparecem no site */
+      v.cultos = v.cultos.map(c => ({ culto: c.culto, itens: (c.itens || []).filter(i => !i.sem && i.t) })).filter(c => c.itens.length);
       DATA.repertorios[date] = v.cultos;
       /* playlist do YouTube montada sozinha com os vídeos das músicas do domingo */
       const ids = [];

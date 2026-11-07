@@ -32,11 +32,14 @@ button:disabled{opacity:.6;cursor:default}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
 .culto{border-top:1px dashed var(--line);padding-top:12px;margin-top:14px}
 .culto h3{margin:0 0 10px;font-size:1rem;color:var(--green);letter-spacing:.05em}
-.slot{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:center;margin-bottom:8px}
+.slot{display:grid;grid-template-columns:150px 1fr auto;gap:10px;align-items:center;margin-bottom:8px}
+.slot label.sem{flex-direction:row;align-items:center;gap:6px;font-weight:600;font-size:.8rem;white-space:nowrap;cursor:pointer}
+.slot label.sem input{min-height:0}
+.slot.off input[list]{opacity:.55;font-style:italic}
 .slot .m{font-weight:700;font-size:.9rem}
 .slot select.m{font-weight:700}
 .slot .fixed{padding:9px 10px;color:var(--muted)}
-@media (max-width:560px){.slot{grid-template-columns:1fr;gap:4px}}
+@media (max-width:560px){.slot{grid-template-columns:1fr auto;gap:4px}.slot select.m{grid-column:1/-1}}
 .hint{font-size:.85rem;color:var(--muted)}
 .pend{display:flex;gap:10px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding:8px 0}
 .hidden{display:none!important}
@@ -268,9 +271,10 @@ async function iniciaEditor() {
 const LISTA = m => ({ 'Adoração': 'A', 'Confissão': 'C', 'Louvor': 'L' })[m] || 'todas';
 const MOMS_NOITE = ['Prelúdio', 'Adoração', 'Confissão', 'Louvor', 'Hino', 'Música nova', 'Santa Ceia', 'Pós-pregação', 'Poslúdio'];
 
-function slotHtml(culto, i, m, t, opcoes) {
-  return `<div class="slot"><select class="m" data-culto="${culto}" data-i="${i}">${[...new Set([m, ...opcoes])].map(o => `<option${o === m ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>
-      <input data-culto="${culto}" data-i="${i}" list="dl-${LISTA(m)}" value="${esc(t)}" placeholder="Toque para escolher" autocomplete="off"></div>`;
+function slotHtml(culto, i, m, t, opcoes, sem) {
+  return `<div class="slot${sem ? ' off' : ''}"><select class="m" data-culto="${culto}" data-i="${i}">${[...new Set([m, ...opcoes])].map(o => `<option${o === m ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>
+      <input data-culto="${culto}" data-i="${i}" list="dl-${LISTA(m)}" value="${sem ? '' : esc(t)}" placeholder="${sem ? 'Não haverá música neste momento' : 'Toque para escolher'}" autocomplete="off"${sem ? ' disabled' : ''}>
+      <label class="sem" title="Marque se este momento não terá música"><input type="checkbox" class="sem" data-culto="${culto}" data-i="${i}"${sem ? ' checked' : ''}> Sem música</label></div>`;
 }
 
 function desenha(rep) {
@@ -279,31 +283,40 @@ function desenha(rep) {
   const ceia = $('#ceia').checked;
   const mSlots = [0, 1].map(i => manha.itens[i] || { m: i ? 'Música nova' : 'Hino', t: '' });
   /* noite: usa o que já foi salvo; se não houver, a liturgia padrão */
-  let nSlots = noite.itens.filter(x => x.t !== 'Tríplice Amém').map(x => ({ m: x.m, t: x.t }));
+  let nSlots = noite.itens.filter(x => x.t !== 'Tríplice Amém').map(x => ({ m: x.m, t: x.t, sem: !!x.sem }));
   if (!nSlots.length) nSlots = NOITE.filter(([m, l]) => l).map(([m]) => ({ m, t: '' }));
   const temCeia = nSlots.some(x => x.m === 'Santa Ceia');
   if (ceia && !temCeia) { const k = nSlots.findIndex(x => x.m === 'Pós-pregação'); nSlots.splice(k < 0 ? nSlots.length : k, 0, { m: 'Santa Ceia', t: '' }); }
   if (!ceia && temCeia) nSlots = nSlots.filter(x => x.m !== 'Santa Ceia');
   $('#cultos').innerHTML = `
-    <div class="culto"><h3>MANHÃ · 2 músicas</h3>${mSlots.map((s, i) => slotHtml('Manhã', i, s.m, s.t, MANHA)).join('')}</div>
-    <div class="culto"><h3>NOITE · liturgia</h3>${nSlots.map((s, i) => slotHtml('Noite', i, s.m, s.t, MOMS_NOITE)).join('')}
+    <div class="culto"><h3>MANHÃ · 2 músicas</h3>${mSlots.map((s, i) => slotHtml('Manhã', i, s.m, s.t, MANHA, s.sem)).join('')}</div>
+    <div class="culto"><h3>NOITE · liturgia</h3>${nSlots.map((s, i) => slotHtml('Noite', i, s.m, s.t, MOMS_NOITE, s.sem)).join('')}
       <div class="slot"><span class="m">Tríplice Amém</span><span class="fixed">Tríplice Amém (fixo, sempre no fim)</span></div></div>`;
   /* trocar o momento muda a lista de músicas do campo */
   $('#cultos').querySelectorAll('select.m').forEach(sel => sel.addEventListener('change', () => {
     const inp = $(`#cultos input[data-culto="${sel.dataset.culto}"][data-i="${sel.dataset.i}"]`); if (inp) inp.setAttribute('list', 'dl-' + LISTA(sel.value));
   }));
+  /* "Sem música": desliga o campo daquele momento */
+  $('#cultos').querySelectorAll('input.sem').forEach(cb => cb.addEventListener('change', () => {
+    const inp = $(`#cultos input[list][data-culto="${cb.dataset.culto}"][data-i="${cb.dataset.i}"]`);
+    cb.closest('.slot').classList.toggle('off', cb.checked);
+    inp.disabled = cb.checked;
+    if (cb.checked) { inp.dataset.guardado = inp.value; inp.value = ''; inp.placeholder = 'Não haverá música neste momento'; }
+    else { inp.value = inp.dataset.guardado || ''; inp.placeholder = 'Toque para escolher'; }
+  }));
   /* ao tocar no campo, limpa para mostrar a lista inteira; se sair sem escolher, volta o que estava */
-  $('#cultos').querySelectorAll('input').forEach(inp => {
+  $('#cultos').querySelectorAll('input[list]').forEach(inp => {
     inp.addEventListener('focus', () => { if (inp.value) { inp.dataset.prev = inp.value; inp.placeholder = inp.value; inp.value = ''; } });
     inp.addEventListener('blur', () => { if (!inp.value && inp.dataset.prev) inp.value = inp.dataset.prev; delete inp.dataset.prev; });
   });
 }
 
 function lerForm(manterVazios) {
-  const ler = culto => [...$('#cultos').querySelectorAll(`input[data-culto="${culto}"]`)].map(inp => {
+  const ler = culto => [...$('#cultos').querySelectorAll(`input[list][data-culto="${culto}"]`)].map(inp => {
     const m = $(`#cultos select[data-culto="${culto}"][data-i="${inp.dataset.i}"]`).value;
+    if ($(`#cultos input.sem[data-culto="${culto}"][data-i="${inp.dataset.i}"]`).checked) return { m, t: '', sem: true };
     return { m, t: inp.value.trim() || inp.dataset.prev || '' };
-  }).filter(x => manterVazios || x.t);
+  }).filter(x => manterVazios || x.t || x.sem);
   const manha = { culto: 'Manhã', itens: ler('Manhã') };
   const noite = { culto: 'Noite', itens: [...ler('Noite'), { m: 'Encerramento', t: 'Tríplice Amém' }] };
   return { cultos: [manha, noite].filter(c => c.itens.length), sp: $('#sp').value.trim() };
@@ -325,10 +338,10 @@ async function salvar() {
   const rep = lerForm();
   const D = await siteData();
   const conhecidas = new Set([...(D.musicas || []).map(m => m.t), ...(D.hinario || []).map(nomeHino), 'Tríplice Amém']);
-  const fora = rep.cultos.flatMap(c => c.itens).map(i => i.t).filter(t => !conhecidas.has(t));
-  const vazios = $('#cultos').querySelectorAll('input').length - rep.cultos.reduce((n, c) => n + c.itens.filter(i => i.t !== 'Tríplice Amém').length, 0);
+  const fora = rep.cultos.flatMap(c => c.itens).filter(i => !i.sem).map(i => i.t).filter(t => !conhecidas.has(t));
+  const vazios = $('#cultos').querySelectorAll('input[list]').length - rep.cultos.reduce((n, c) => n + c.itens.filter(i => i.t !== 'Tríplice Amém').length, 0);
   if (fora.length && !confirm('Estas músicas não estão no repertório do site (ficarão sem links):\n\n' + fora.join('\n') + '\n\nSalvar assim mesmo?')) return;
-  if (vazios > 0 && !confirm(`Há ${vazios} momento(s) sem música. Salvar assim mesmo?`)) return;
+  if (vazios > 0 && !confirm(`Há ${vazios} momento(s) sem música escolhida. Se algum desses momentos não vai ter música, marque “Sem música” nele.\n\nSalvar assim mesmo?`)) return;
   $('#salvar').disabled = true; msg('#rep-msg', 'Salvando…');
   try {
     await setDoc(doc(db, 'repertorios', data), { json: JSON.stringify(rep), autor: auth.currentUser.email, atualizado: serverTimestamp() });
