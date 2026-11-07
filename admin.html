@@ -260,9 +260,17 @@ async function iniciaEditor() {
   const d = new Date(); d.setHours(12); d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
   $('#data').value = d.toISOString().slice(0, 10);
   $('#data').onchange = carregaData;
-  $('#ceia').onchange = () => desenha(lerForm());
+  $('#ceia').onchange = () => desenha(lerForm(true));
   $('#salvar').onclick = salvar;
   carregaData();
+}
+
+const LISTA = m => ({ 'Adoração': 'A', 'Confissão': 'C', 'Louvor': 'L' })[m] || 'todas';
+const MOMS_NOITE = ['Prelúdio', 'Adoração', 'Confissão', 'Louvor', 'Hino', 'Música nova', 'Santa Ceia', 'Pós-pregação', 'Poslúdio'];
+
+function slotHtml(culto, i, m, t, opcoes) {
+  return `<div class="slot"><select class="m" data-culto="${culto}" data-i="${i}">${[...new Set([m, ...opcoes])].map(o => `<option${o === m ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>
+      <input data-culto="${culto}" data-i="${i}" list="dl-${LISTA(m)}" value="${esc(t)}" placeholder="Toque para escolher" autocomplete="off"></div>`;
 }
 
 function desenha(rep) {
@@ -270,18 +278,20 @@ function desenha(rep) {
   const noite = (rep && rep.cultos.find(c => c.culto === 'Noite')) || { itens: [] };
   const ceia = $('#ceia').checked;
   const mSlots = [0, 1].map(i => manha.itens[i] || { m: i ? 'Música nova' : 'Hino', t: '' });
-  const nSlots = []; const usados = new Set();
-  const pega = (m, k) => { const i = noite.itens.findIndex((x, j) => x.m === m && !usados.has(j)); if (i < 0) return ''; usados.add(i); return noite.itens[i].t; };
-  NOITE.forEach(([m, lista], k) => {
-    nSlots.push({ m, lista, t: lista ? pega(m) : 'Tríplice Amém' });
-    if (ceia && m === 'Pós-pregação') nSlots.splice(nSlots.length - 1, 0, { m: 'Santa Ceia', lista: 'todas', t: pega('Santa Ceia') });
-  });
+  /* noite: usa o que já foi salvo; se não houver, a liturgia padrão */
+  let nSlots = noite.itens.filter(x => x.t !== 'Tríplice Amém').map(x => ({ m: x.m, t: x.t }));
+  if (!nSlots.length) nSlots = NOITE.filter(([m, l]) => l).map(([m]) => ({ m, t: '' }));
+  const temCeia = nSlots.some(x => x.m === 'Santa Ceia');
+  if (ceia && !temCeia) { const k = nSlots.findIndex(x => x.m === 'Pós-pregação'); nSlots.splice(k < 0 ? nSlots.length : k, 0, { m: 'Santa Ceia', t: '' }); }
+  if (!ceia && temCeia) nSlots = nSlots.filter(x => x.m !== 'Santa Ceia');
   $('#cultos').innerHTML = `
-    <div class="culto"><h3>MANHÃ · 2 músicas</h3>${mSlots.map((s, i) => `
-      <div class="slot"><select class="m" data-culto="Manhã" data-i="${i}">${[...new Set([s.m, ...MANHA])].map(o => `<option${o === s.m ? ' selected' : ''}>${esc(o)}</option>`).join('')}</select>
-      <input data-culto="Manhã" data-i="${i}" list="dl-todas" value="${esc(s.t)}" placeholder="Toque para escolher" autocomplete="off"></div>`).join('')}</div>
-    <div class="culto"><h3>NOITE · liturgia</h3>${nSlots.map((s, i) => `
-      <div class="slot"><span class="m">${esc(s.m)}</span>${s.lista ? `<input data-culto="Noite" data-m="${esc(s.m)}" list="dl-${s.lista}" value="${esc(s.t)}" placeholder="Toque para escolher" autocomplete="off">` : `<span class="fixed">Tríplice Amém (fixo)</span>`}</div>`).join('')}</div>`;
+    <div class="culto"><h3>MANHÃ · 2 músicas</h3>${mSlots.map((s, i) => slotHtml('Manhã', i, s.m, s.t, MANHA)).join('')}</div>
+    <div class="culto"><h3>NOITE · liturgia</h3>${nSlots.map((s, i) => slotHtml('Noite', i, s.m, s.t, MOMS_NOITE)).join('')}
+      <div class="slot"><span class="m">Tríplice Amém</span><span class="fixed">Tríplice Amém (fixo, sempre no fim)</span></div></div>`;
+  /* trocar o momento muda a lista de músicas do campo */
+  $('#cultos').querySelectorAll('select.m').forEach(sel => sel.addEventListener('change', () => {
+    const inp = $(`#cultos input[data-culto="${sel.dataset.culto}"][data-i="${sel.dataset.i}"]`); if (inp) inp.setAttribute('list', 'dl-' + LISTA(sel.value));
+  }));
   /* ao tocar no campo, limpa para mostrar a lista inteira; se sair sem escolher, volta o que estava */
   $('#cultos').querySelectorAll('input').forEach(inp => {
     inp.addEventListener('focus', () => { if (inp.value) { inp.dataset.prev = inp.value; inp.placeholder = inp.value; inp.value = ''; } });
@@ -289,17 +299,13 @@ function desenha(rep) {
   });
 }
 
-function lerForm() {
-  const manha = { culto: 'Manhã', itens: [] }, noite = { culto: 'Noite', itens: [] };
-  $('#cultos').querySelectorAll('input[data-culto="Manhã"]').forEach(inp => {
-    const m = $(`select[data-culto="Manhã"][data-i="${inp.dataset.i}"]`).value;
-    if (inp.value.trim()) manha.itens.push({ m, t: inp.value.trim() });
-  });
-  $('#cultos').querySelectorAll('.culto:nth-child(2) .slot').forEach(sl => {
-    const m = sl.querySelector('.m').textContent, inp = sl.querySelector('input');
-    if (!inp) noite.itens.push({ m: 'Encerramento', t: 'Tríplice Amém' });
-    else if (inp.value.trim()) noite.itens.push({ m, t: inp.value.trim() });
-  });
+function lerForm(manterVazios) {
+  const ler = culto => [...$('#cultos').querySelectorAll(`input[data-culto="${culto}"]`)].map(inp => {
+    const m = $(`#cultos select[data-culto="${culto}"][data-i="${inp.dataset.i}"]`).value;
+    return { m, t: inp.value.trim() || inp.dataset.prev || '' };
+  }).filter(x => manterVazios || x.t);
+  const manha = { culto: 'Manhã', itens: ler('Manhã') };
+  const noite = { culto: 'Noite', itens: [...ler('Noite'), { m: 'Encerramento', t: 'Tríplice Amém' }] };
   return { cultos: [manha, noite].filter(c => c.itens.length), sp: $('#sp').value.trim() };
 }
 
