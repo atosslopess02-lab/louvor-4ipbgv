@@ -172,6 +172,15 @@ function finalLines(s){
   });
 }
 
+/* link do Cifra Club já no tom desejado: o Cifra Club usa ?keyShape=N, com N = semitons acima de Lá (A=0, Bb=1 … G=10, Ab=11) */
+function ccLink(s){
+  const cc = s.cc || ''; if(!cc || cc.includes('?q=')) return cc;
+  const base = cc.split('#')[0].split('?')[0];
+  const r = keyRoot(s.tomNovo); if(!r || IDX[r] === undefined) return base;
+  return base + '?keyShape=' + ((IDX[r] - 9 + 12) % 12);
+}
+function ccLabel(s){ if(!s.cc || s.cc.includes('?q=')) return 'Buscar no Cifra Club ↗'; return 'Abrir no Cifra Club' + (s.tomNovo ? ' em ' + s.tomNovo : '') + ' ↗'; }
+
 /* ---------- estado ---------- */
 function save(){ try{ localStorage.setItem('montador-cifras', JSON.stringify(state)); }catch(e){} }
 function load(){ try{ const s = JSON.parse(localStorage.getItem('montador-cifras')||'null'); if(s && Array.isArray(s.songs)) state = s; }catch(e){} }
@@ -197,7 +206,7 @@ function render(){
     <textarea data-k="texto" placeholder="Cole aqui a cifra copiada do Cifra Club">${esc(s.texto)}</textarea>
     <div class="tools">
       <span class="num">${i+1}. ${esc(s.titulo||'Música')}</span>
-      ${s.cc ? `<a class="cc" href="${esc(s.cc)}" target="_blank" rel="noopener">${s.cc.includes('?q=') ? 'Buscar no Cifra Club' : 'Abrir no Cifra Club'} ↗</a>` : `<a class="cc" href="https://www.cifraclub.com.br/?q=${encodeURIComponent(s.titulo||'')}" target="_blank" rel="noopener">Buscar no Cifra Club ↗</a>`}
+      ${s.cc ? `<a class="cc" href="${esc(ccLink(s))}" target="_blank" rel="noopener">${ccLabel(s)}</a>` : `<a class="cc" href="https://www.cifraclub.com.br/?q=${encodeURIComponent(s.titulo||'')}" target="_blank" rel="noopener">Buscar no Cifra Club ↗</a>`}
       <button type="button" class="small" data-act="up" aria-label="Subir">↑</button>
       <button type="button" class="small" data-act="down" aria-label="Descer">↓</button>
       <button type="button" class="small danger" data-act="del">Remover</button>
@@ -238,7 +247,9 @@ $('#list').addEventListener('change', e => {
     if(m){ s.titulo = m.t; s.artista = m.art || ''; s.cc = m.cc || ''; save(); render(); toast('Cifra pronta: toque em Abrir no Cifra Club'); }
     return;
   }
-  if(e.target.tagName === 'SELECT'){ const i = +e.target.closest('.card').dataset.i; state.songs[i][e.target.dataset.k] = e.target.value; save(); if(e.target.dataset.k === 'momento') render(); else preview(); } });
+  if(e.target.tagName === 'SELECT'){ const card = e.target.closest('.card'), i = +card.dataset.i; state.songs[i][e.target.dataset.k] = e.target.value; save();
+    if(e.target.dataset.k === 'tomNovo'){ const a = card.querySelector('a.cc'); const s = state.songs[i]; if(a && s.cc){ a.href = ccLink(s); a.textContent = ccLabel(s); } }
+    if(e.target.dataset.k === 'momento') render(); else preview(); } });
 /* ao tocar no campo Música, limpa o texto para a lista mostrar todas as opções do momento */
 $('#list').addEventListener('focusin', e => { if(e.target.dataset.k === 'titulo' && e.target.value){ e.target.dataset.prev = e.target.value; e.target.placeholder = e.target.value; e.target.value = ''; } });
 $('#list').addEventListener('focusout', e => { if(e.target.dataset.k === 'titulo' && !e.target.value && e.target.dataset.prev){ e.target.value = e.target.dataset.prev; } });
