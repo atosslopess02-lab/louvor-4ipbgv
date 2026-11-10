@@ -58,9 +58,11 @@
         DATA.publicados.push(date);
         /* playlist do YouTube montada sozinha com os vídeos das músicas do domingo */
         const ids = [];
-        v.cultos.forEach(c => c.itens.forEach(i => { const m = byTitle[i.t]; const id = m && (m.yt.match(/[?&]v=([\w-]{6,})/) || [])[1]; if (id && !ids.includes(id)) ids.push(id); }));
+        /* hinos: o vídeo vem do próprio item (o painel busca no YouTube ao salvar) */
+        v.cultos.forEach(c => c.itens.forEach(i => { const m = byTitle[i.t]; const id = (m && m.yt) ? (m.yt.match(/[?&]v=([\w-]{6,})/) || [])[1] : i.yt; if (id && !ids.includes(id)) ids.push(id); }));
         const old = DATA.semana[date] || {};
         DATA.semana[date] = {
+          titulo: 'Repertório – ' + date.split('-').reverse().slice(0, 2).join('/') + ' – 4ª IPB Governador Valadares',
           sp: v.sp || old.sp || '',
           yt: v.yt || (ids.length ? 'https://www.youtube.com/watch_videos?video_ids=' + ids.join(',') : old.yt || '')
         };

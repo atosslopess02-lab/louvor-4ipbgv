@@ -284,10 +284,12 @@ document.getElementById('nx-set').innerHTML = set ? set.map(s => `<div class="sv
   : '<p class="empty">O repertório deste domingo ainda não foi enviado.</p>';
 const wk = (DATA.semana || {})[cur];
 const cf = (DATA.cifras || {})[cur];
-const quick = wk ? `<div class="quick"><span class="ql">Ouvir o repertório completo de ${br(cur)}</span>${wk.sp?`<a class="qbtn sp" href="${wk.sp}">🎧 Spotify</a>`:''}${wk.yt?`<a class="qbtn yt" href="${wk.yt}">▶️ YouTube</a>`:''}</div>` : '';
+const wkTit = wk ? (wk.titulo || ('Repertório – ' + br(cur) + ' – 4ª IPB Governador Valadares')) : '';
+const wkBtns = wk ? `${wk.sp?`<a class="qbtn sp" href="${wk.sp}">🎧 Spotify</a>`:''}${wk.yt?`<a class="qbtn yt" href="${wk.yt}">▶️ YouTube</a>`:''}` : '';
+const quick = wk ? `<div class="quick"><span class="ql">${esc(wkTit)}</span>${wkBtns}</div>` : '';
 document.getElementById('nx-set').insertAdjacentHTML('beforeend', quick);
 if (cf) document.getElementById('nx-set').insertAdjacentHTML('beforeend', `<p class="cflink"><a href="${cf.pdf}" download>📄 Baixe todas as cifras em PDF</a></p>`);
-document.getElementById('wk-pl').innerHTML = wk ? `<div class="card" style="margin-bottom:16px"><div class="eyebrow">Repertório da semana · ${br(cur)}</div><p style="margin:.3em 0 0">Todas as músicas do domingo juntas, na ordem do culto.</p>${quick.replace('<span class="ql">Ouvir o repertório completo de '+br(cur)+'</span>','')}</div>` : '';
+document.getElementById('wk-pl').innerHTML = wk ? `<div class="card" style="margin-bottom:16px"><div class="eyebrow">${esc(wkTit)}</div><p style="margin:.3em 0 0">Todas as músicas do domingo juntas, na ordem do culto, com os hinos.</p><div class="quick">${wkBtns}</div></div>` : '';
 
 /* Escala */
 document.getElementById('esc-title').textContent = 'Escala de ' + DATA.escala.mes;

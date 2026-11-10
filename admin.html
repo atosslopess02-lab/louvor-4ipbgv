@@ -414,12 +414,30 @@ async function salvar() {
   const vazios = $('#cultos').querySelectorAll('input[list]').length - rep.cultos.reduce((n, c) => n + c.itens.filter(i => i.t !== 'Tríplice Amém').length, 0);
   if (fora.length && !confirm('Estas músicas não estão no repertório do site (ficarão sem links):\n\n' + fora.join('\n') + '\n\nSalvar assim mesmo?')) return;
   if (vazios > 0 && !confirm(`Há ${vazios} momento(s) sem música escolhida. Se algum desses momentos não vai ter música, marque “Sem música” nele.\n\nSalvar assim mesmo?`)) return;
-  $('#salvar').disabled = true; msg('#rep-msg', 'Salvando…');
+  $('#salvar').disabled = true; msg('#rep-msg', 'Salvando… (buscando os vídeos dos hinos para a playlist)');
+  await videosHinos(rep);
   try {
     await setDoc(doc(db, 'repertorios', data), { json: JSON.stringify(rep), autor: auth.currentUser.email, atualizado: serverTimestamp() });
     msg('#rep-msg', `✅ Repertório de ${data.split('-').reverse().join('/')} salvo. Já aparece no site.`, 'ok');
   } catch (e) { msg('#rep-msg', 'Não consegui salvar: ' + esc(e.code || e.message), 'err'); }
   $('#salvar').disabled = false;
+}
+
+/* hinos não estão no repertório geral: busca o vídeo de cada um no YouTube para entrar na playlist do domingo */
+async function videosHinos(rep) {
+  const key = (window.LOUVOR_CONFIG || {}).youtubeKey; if (!key) return;
+  let cache = {}; try { cache = JSON.parse(localStorage.getItem('yt-hinos') || '{}'); } catch (e) {}
+  for (const c of rep.cultos) for (const i of c.itens) {
+    if (i.sem || !/^Hino \d/.test(i.t || '')) continue;
+    if (cache[i.t]) { i.yt = cache[i.t]; continue; }
+    try {
+      const q = i.t.replace(' – ', ' ') + ' Novo Cântico';
+      const j = await (await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=${encodeURIComponent(q)}&key=${key}`)).json();
+      const id = j.items && j.items[0] && j.items[0].id.videoId;
+      if (id) { i.yt = id; cache[i.t] = id; }
+    } catch (e) {}
+  }
+  try { localStorage.setItem('yt-hinos', JSON.stringify(cache)); } catch (e) {}
 }
 
 /* ---------- questionário de disponibilidade da escala ---------- */
