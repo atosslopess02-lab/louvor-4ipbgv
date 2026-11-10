@@ -403,10 +403,19 @@ function enviarParaMontador(){
   var h = document.querySelector('h1'), a = h && h.nextElementSibling, tom = '';
   [].slice.call(document.querySelectorAll('span,b,a,div,p')).some(function(e){ var m = e.textContent.match(/^\s*Tom:?\s*([A-G][#b]?m?)\s*$/); if(m){ tom = m[1]; return true; } return false; });
   var d = {t: h ? h.textContent.trim() : document.title, a: a ? a.textContent.replace(/\s+/g,' ').trim() : '', tom: tom, u: location.href.split('#')[0].split('?')[0], x: p.textContent};
-  var url = '__MONTADOR__#cc=' + encodeURIComponent(JSON.stringify(d));
-  var w = window.open(url, 'montador-cifras'); if(!w) location.href = url;
+  var url = '__MONTADOR__#cc=' + encodeURIComponent(JSON.stringify(d)), origem = '__ORIGEM__';
+  var abreNova = function(){ var w = window.open(url, 'montador-cifras'); if(!w) location.href = url; };
+  var aviso = function(t){ var b = document.createElement('div'); b.textContent = t; b.style.cssText = 'position:fixed;z-index:2147483647;left:50%;top:20px;transform:translateX(-50%);background:#1f7a3a;color:#fff;font:700 16px system-ui,sans-serif;padding:14px 22px;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.3)'; document.body.appendChild(b); setTimeout(function(){ b.remove(); }, 3500); };
+  /* aba do Cifra Club aberta pelo montador: devolve a cifra para a mesma aba do montador */
+  var o = window.opener, ok = false;
+  if(o && !o.closed){
+    var ouve = function(e){ if(e.origin === origem && e.data && e.data.montadorOk){ ok = true; window.removeEventListener('message', ouve); aviso('✓ Cifra enviada para o montador. Volte para a aba do montador.'); try{ o.focus(); }catch(err){} } };
+    window.addEventListener('message', ouve);
+    try{ o.postMessage({ montadorCifra: d }, origem); }catch(err){}
+    setTimeout(function(){ if(!ok){ window.removeEventListener('message', ouve); abreNova(); } }, 900);
+  } else abreNova();
 }
-const BOOKMARKLET = 'javascript:' + encodeURIComponent('(' + enviarParaMontador.toString().replace('__MONTADOR__', location.origin + location.pathname) + ')();void 0');
+const BOOKMARKLET = 'javascript:' + encodeURIComponent('(' + enviarParaMontador.toString().replace('__MONTADOR__', location.origin + location.pathname).replace('__ORIGEM__', location.origin) + ')();void 0');
 $('#bm-link').href = BOOKMARKLET;
 $('#bm-link').addEventListener('click', e => { e.preventDefault(); toast('Arraste este botão para a barra de favoritos'); });
 $('#bm-copy').onclick = async () => {
@@ -420,6 +429,9 @@ function recebeCifra(){
   if(!location.hash.startsWith('#cc=')) return;
   let d; try{ d = JSON.parse(decodeURIComponent(location.hash.slice(4))); }catch(e){ return; }
   history.replaceState(null, '', location.pathname + location.search);
+  aplicaCifra(d);
+}
+function aplicaCifra(d){
   if(!d || !d.x) return;
   const p = parsePaste(d.x);
   const tom = d.tom || p.tom;
@@ -440,6 +452,22 @@ function recebeCifra(){
   toast(`Cifra recebida: ${s.titulo}${tom ? ' (tom ' + tom + ')' : ''}`);
 }
 window.addEventListener('hashchange', recebeCifra);
+/* cifra devolvida pela aba do Cifra Club que o montador abriu */
+window.addEventListener('message', e => {
+  let host = ''; try{ host = new URL(e.origin).hostname; }catch(err){}
+  if(!/(^|\.)cifraclub\.com\.br$/.test(host) || !e.data || !e.data.montadorCifra) return;
+  aplicaCifra(e.data.montadorCifra);
+  try{ e.source.postMessage({ montadorOk: true }, e.origin); }catch(err){}
+  try{ window.focus(); }catch(err){}
+});
+/* os links do Cifra Club abrem sempre na mesma aba, ligada a esta página */
+window.name = 'montador-cifras';
+document.addEventListener('click', e => {
+  const a = e.target.closest('a.cc'); if(!a || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  e.preventDefault();
+  const w = window.open(a.href, 'cifraclub-montador');
+  if(!w) location.href = a.href; else try{ w.focus(); }catch(err){}
+});
 
 load(); render(); recebeCifra(); getSite().then(() => render()).catch(() => {});
 </script>
