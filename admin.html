@@ -45,6 +45,8 @@ button:disabled{opacity:.6;cursor:default}
 .pend{display:flex;gap:10px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding:8px 0}
 .hidden{display:none!important}
 .who{font-size:.85rem;color:var(--muted)}
+.erow{display:grid;grid-template-columns:170px 1fr auto;gap:8px;align-items:center;margin-bottom:6px}.erow input{min-height:38px}.erow button{min-height:36px;padding:4px 10px}
+.echips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.echips button{min-height:34px;padding:4px 12px;font-size:.85rem}.echips button.on{background:var(--green);color:#fff;border-color:var(--green)}
 h3.sub{margin:18px 0 8px;font-size:.95rem;color:var(--green)}
 .qsem{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px}.qsem label{flex-direction:row;align-items:center;gap:5px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;font-weight:700;cursor:pointer;color:var(--ink,inherit)}.qsem input{min-height:0}
 .qd{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line)}
@@ -126,7 +128,26 @@ table.r th{background:var(--soft)}
     <a class="btn" href="./" target="_blank">Ver o site</a>
   </div>
   <div id="rep-msg"></div>
-  <p class="hint">Toque no campo da música para ver a lista do momento. Os hinos do Novo Cântico aparecem como “Hino 113 – Achei um Bom Amigo”.</p>
+  <p class="hint">Toque no campo da música para ver a lista do momento. Quando o momento é <b>Hino</b>, a lista mostra só os hinos do Novo Cântico (ex.: “Hino 113 – Achei um Bom Amigo”).</p>
+</div>
+
+<div class="card hidden" id="v-escala">
+  <h2>Escala atual</h2>
+  <p class="lead">Escolha o dia e ajuste a escala: tire quem não vai poder, inclua quem ficou disponível. Ao salvar, o site já mostra a escala nova.</p>
+  <div class="row" style="align-items:flex-end">
+    <label>Dia<input type="date" id="e-data"></label>
+    <span class="hint" style="flex:1">ou toque num dia da escala:</span>
+  </div>
+  <div class="echips" id="e-dias"></div>
+  <p class="hint" id="e-origem"></p>
+  <div id="e-linhas"></div>
+  <div class="row" style="margin-top:8px"><button type="button" id="e-add">+ Incluir pessoa</button></div>
+  <div class="row" style="margin-top:16px">
+    <button type="button" class="primary" id="e-salvar">💾 Salvar escala deste dia</button>
+    <button type="button" id="e-original">↩️ Voltar à escala original</button>
+  </div>
+  <div id="e-msg"></div>
+  <p class="hint">Dica: para ter duas pessoas na mesma função, use “+ Incluir pessoa” e repita a função. Para tirar alguém, toque em ✕.</p>
 </div>
 
 <div class="card hidden" id="v-quest">
@@ -170,7 +191,7 @@ table.r th{background:var(--soft)}
 </div>
 
 </main>
-<datalist id="dl-todas"></datalist><datalist id="dl-A"></datalist><datalist id="dl-C"></datalist><datalist id="dl-L"></datalist>
+<datalist id="dl-todas"></datalist><datalist id="dl-H"></datalist><datalist id="dl-pessoas"></datalist><datalist id="dl-A"></datalist><datalist id="dl-C"></datalist><datalist id="dl-L"></datalist>
 
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
@@ -180,7 +201,7 @@ import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, qu
 const CFG = window.LOUVOR_CONFIG || {};
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const show = (...ids) => { ['v-config','v-login','v-espera','v-verificar','v-aprov','v-rep','v-quest','v-gerais'].forEach(id => $('#'+id).classList.toggle('hidden', !ids.includes(id))); };
+const show = (...ids) => { ['v-config','v-login','v-espera','v-verificar','v-aprov','v-rep','v-escala','v-quest','v-gerais'].forEach(id => $('#'+id).classList.toggle('hidden', !ids.includes(id))); };
 const msg = (el, text, kind='') => { $(el).innerHTML = text ? `<div class="msg ${kind}">${text}</div>` : ''; };
 const DONO = String(CFG.dono || '').toLowerCase();
 const SITE = location.origin + location.pathname.replace(/[^/]*$/, '');
@@ -256,15 +277,15 @@ async function entrouComo(u) {
   const ehDono = (u.email || '').toLowerCase() === DONO;
   if (ehDono) {
     if (!u.emailVerified) { $('#ver-email').textContent = u.email; show('v-verificar'); return; }
-    show('v-aprov', 'v-rep', 'v-quest', 'v-gerais');
+    show('v-aprov', 'v-rep', 'v-escala', 'v-quest', 'v-gerais');
     await carregaPendentes();
-    iniciaEditor(); iniciaQuest(); carregaGerais();
+    iniciaEditor(); iniciaEscala(); iniciaQuest(); carregaGerais();
     return;
   }
   let aprovado = false;
   try { const s = await getDoc(doc(db, 'usuarios', u.uid)); aprovado = s.exists() && s.data().aprovado === true; } catch (e) {}
   if (!aprovado) { show('v-espera'); return; }
-  show('v-rep', 'v-quest'); iniciaEditor(); iniciaQuest();
+  show('v-rep', 'v-escala', 'v-quest'); iniciaEditor(); iniciaEscala(); iniciaQuest();
 }
 
 /* ---------- aprovações (só o dono) ---------- */
@@ -308,6 +329,7 @@ async function iniciaEditor() {
   const hin = (D.hinario || []).map(nomeHino);
   const opt = list => list.map(t => `<option value="${esc(t)}">`).join('');
   $('#dl-todas').innerHTML = opt([...mus.map(m => m.t), ...hin]);
+  $('#dl-H').innerHTML = opt(hin);
   for (const c of ['A', 'C', 'L']) $('#dl-' + c).innerHTML = opt([...mus.filter(m => (m.m || []).includes(c)).map(m => m.t), ...hin]);
   /* próximo domingo */
   const d = new Date(); d.setHours(12); d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
@@ -318,7 +340,7 @@ async function iniciaEditor() {
   carregaData();
 }
 
-const LISTA = m => ({ 'Adoração': 'A', 'Confissão': 'C', 'Louvor': 'L' })[m] || 'todas';
+const LISTA = m => ({ 'Hino': 'H', 'Adoração': 'A', 'Confissão': 'C', 'Louvor': 'L' })[m] || 'todas';
 const MOMS_NOITE = ['Prelúdio', 'Adoração', 'Confissão', 'Louvor', 'Hino', 'Música nova', 'Santa Ceia', 'Pós-pregação', 'Poslúdio'];
 
 function slotHtml(culto, i, m, t, opcoes, sem) {
@@ -529,6 +551,74 @@ async function carregaRespostas(mes) {
     qQuadro = window.QuadroEscala($('#q-quadro'), { datas: q.datas, pessoas, funcoes: q.funcoes || [], quadro: q.quadro || {}, onChange: () => msg('#q-quadro-msg', 'Alterações ainda não salvas.') });
   } catch (e) { $('#q-resp').innerHTML = '<p class="hint">Não consegui ler as respostas (' + esc(e.code || e.message) + ').</p>'; }
 }
+/* ---------- escala atual (editar um dia) ---------- */
+let escIniciada = false, eLinhas = [], eFuncoes = [];
+const brDt = d => d.split('-').reverse().slice(0, 2).join('/');
+async function iniciaEscala() {
+  if (escIniciada) return; escIniciada = true;
+  const D = await siteData(); const E = D.escala || { domingos: [], funcoes: [] };
+  eFuncoes = E.funcoes.map(f => f.f);
+  let salvas = [];
+  try { salvas = (await getDocs(collection(db, 'escalas'))).docs.map(d => d.id); } catch (e) {}
+  const dias = [...new Set([...E.domingos, ...salvas])].sort();
+  const hoje = ymdL(new Date());
+  $('#e-dias').innerHTML = dias.map(d => `<button type="button" data-d="${d}">${DIAS_SEM[new Date(d + 'T12:00:00').getDay()].slice(0, 3)} ${brDt(d)}</button>`).join('');
+  $('#e-dias').querySelectorAll('button').forEach(b => b.onclick = () => { $('#e-data').value = b.dataset.d; carregaEscalaDia(); });
+  /* nomes para sugerir: equipe cadastrada + nomes que já estão na escala */
+  let nomes = new Set(); E.funcoes.forEach(f => f.nomes.forEach(n => n && n !== '—' && nomes.add(n)));
+  try { (await getDocs(collection(db, 'membros'))).docs.forEach(d => nomes.add(d.data().nome)); } catch (e) {}
+  $('#dl-pessoas').innerHTML = [...nomes].sort((a, b) => a.localeCompare(b, 'pt')).map(n => `<option value="${esc(n)}">`).join('');
+  $('#e-data').value = dias.find(d => d >= hoje) || dias[dias.length - 1] || hoje;
+  $('#e-data').onchange = carregaEscalaDia;
+  $('#e-add').onclick = () => { lerEscala(); eLinhas.push({ f: '', n: '' }); desenhaEscala(); const fs = $('#e-linhas').querySelectorAll('.e-f'); fs[fs.length - 1].focus(); };
+  $('#e-salvar').onclick = salvaEscala;
+  $('#e-original').onclick = async () => {
+    const d = $('#e-data').value; if (!d || !confirm('Voltar à escala original de ' + brDt(d) + '? As mudanças feitas aqui serão apagadas.')) return;
+    try { await deleteDoc(doc(db, 'escalas', d)); msg('#e-msg', 'Escala original de volta.', 'ok'); carregaEscalaDia(); } catch (e) { msg('#e-msg', 'Não consegui: ' + esc(e.code || e.message), 'err'); }
+  };
+  carregaEscalaDia();
+}
+async function carregaEscalaDia() {
+  const d = $('#e-data').value; if (!d) return;
+  msg('#e-msg', ''); $('#e-dias').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.d === d));
+  const D = await siteData(); const E = D.escala || { domingos: [], funcoes: [] };
+  let origem = '';
+  try { const s = await getDoc(doc(db, 'escalas', d)); if (s.exists()) { eLinhas = JSON.parse(s.data().json).itens; origem = 'Escala já ajustada aqui no painel.'; } } catch (e) {}
+  if (!origem) {
+    const k = E.domingos.indexOf(d);
+    if (k >= 0) { eLinhas = []; E.funcoes.forEach(f => { const n = f.nomes[k]; if (n && n !== '—') n.split(/\s*,\s*/).forEach(x => eLinhas.push({ f: f.f, n: x })); }); origem = 'Escala original do mês.'; }
+  }
+  if (!origem) {
+    try { const q = await getDoc(doc(db, 'questionarios', d.slice(0, 7))); const l = q.exists() && q.data().quadro && q.data().quadro[d]; if (l && l.length) { eLinhas = l.map(x => ({ f: x.f || '', n: x.n })); origem = 'Montada a partir do quadro do questionário.'; } } catch (e) {}
+  }
+  if (!origem) { eLinhas = eFuncoes.map(f => ({ f, n: '' })); origem = 'Dia sem escala ainda: preencha os nomes.'; }
+  $('#e-origem').textContent = DIAS_SEM[new Date(d + 'T12:00:00').getDay()] + ', ' + brDt(d) + ' · ' + origem;
+  desenhaEscala();
+}
+function desenhaEscala() {
+  const fs = [...new Set([...eFuncoes, ...eLinhas.map(x => x.f).filter(Boolean)])];
+  $('#e-linhas').innerHTML = `<datalist id="dl-funcoes">${fs.map(f => `<option value="${esc(f)}">`).join('')}</datalist>` + (eLinhas.map((x, i) => `<div class="erow">
+    <input class="e-f" data-i="${i}" list="dl-funcoes" value="${esc(x.f)}" placeholder="Função">
+    <input class="e-n" data-i="${i}" list="dl-pessoas" value="${esc(x.n)}" placeholder="Nome (deixe em branco se ninguém)">
+    <button type="button" data-tira="${i}" aria-label="Tirar">✕</button></div>`).join('') || '<p class="hint">Ninguém na escala deste dia.</p>');
+  $('#e-linhas').querySelectorAll('[data-tira]').forEach(b => b.onclick = () => { lerEscala(); eLinhas.splice(+b.dataset.tira, 1); desenhaEscala(); msg('#e-msg', 'Alterações ainda não salvas.'); });
+}
+function lerEscala() { eLinhas = [...$('#e-linhas').querySelectorAll('.erow')].map(r => ({ f: r.querySelector('.e-f').value.trim(), n: r.querySelector('.e-n').value.trim() })); }
+async function salvaEscala() {
+  lerEscala(); const d = $('#e-data').value;
+  if (!d) { msg('#e-msg', 'Escolha o dia.', 'err'); return; }
+  if (eLinhas.some(x => x.n && !x.f)) { msg('#e-msg', 'Escreva a função de cada pessoa.', 'err'); return; }
+  const itens = eLinhas.filter(x => x.f && x.n);
+  $('#e-salvar').disabled = true;
+  try {
+    await setDoc(doc(db, 'escalas', d), { json: JSON.stringify({ itens }), autor: auth.currentUser.email, atualizado: serverTimestamp() });
+    msg('#e-msg', `✅ Escala de ${brDt(d)} salva. Já aparece no site.`, 'ok');
+    if (![...$('#e-dias').querySelectorAll('button')].some(b => b.dataset.d === d)) { escIniciada = false; iniciaEscala(); }
+    else $('#e-origem').textContent = DIAS_SEM[new Date(d + 'T12:00:00').getDay()] + ', ' + brDt(d) + ' · Escala já ajustada aqui no painel.';
+  } catch (e) { msg('#e-msg', 'Não consegui salvar: ' + esc(e.code || e.message), 'err'); }
+  $('#e-salvar').disabled = false;
+}
+
 /* ---------- administradores gerais (só o dono) ---------- */
 async function carregaGerais() {
   try {

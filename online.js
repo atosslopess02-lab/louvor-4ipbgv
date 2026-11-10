@@ -15,6 +15,33 @@
   window.carregaRepertoriosOnline = async function (DATA) {
     if (!C().projectId || !C().apiKey) return DATA;
     const key = '?pageSize=300&key=' + C().apiKey;
+    /* escala ajustada no painel (coleção escalas/AAAA-MM-DD) */
+    try {
+      const e = await getJSON(base() + '/escalas' + key);
+      const E = DATA.escala;
+      const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+      const docs = ((e && e.documents) || []).map(d => { try { return { d: d.name.split('/').pop(), itens: JSON.parse(d.fields.json.stringValue).itens || [] }; } catch (x) { return null; } }).filter(Boolean);
+      if (E && Array.isArray(E.domingos) && docs.length) {
+        const hoje = new Date(), hojeS = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0') + '-' + String(hoje.getDate()).padStart(2, '0');
+        const mesFixo = (E.domingos[0] || '').slice(0, 7);
+        /* se a escala fixa já passou e há escala salva de um mês seguinte, o site passa a mostrar esse mês */
+        const prox = docs.map(x => x.d.slice(0, 7)).filter(m => m > mesFixo).sort()[0];
+        if (prox && (E.domingos[E.domingos.length - 1] || '') < hojeS) {
+          DATA.escala = { mes: MESES[+prox.slice(5) - 1] + ' de ' + prox.slice(0, 4), domingos: [], funcoes: E.funcoes.map(f => ({ f: f.f, nomes: [] })) };
+        }
+        const X = DATA.escala, mes = (X.domingos[0] || (prox || '')).slice(0, 7) || mesFixo;
+        docs.filter(x => x.d.slice(0, 7) === mes).sort((a, b) => a.d.localeCompare(b.d)).forEach(({ d, itens }) => {
+          let k = X.domingos.indexOf(d);
+          if (k < 0) { X.domingos.push(d); X.domingos.sort(); k = X.domingos.indexOf(d); X.funcoes.forEach(f => f.nomes.splice(k, 0, '—')); }
+          X.funcoes.forEach(f => f.nomes[k] = '—');
+          itens.forEach(it => {
+            let f = X.funcoes.find(x => x.f === it.f);
+            if (!f) { f = { f: it.f, nomes: X.domingos.map(() => '—') }; X.funcoes.push(f); }
+            f.nomes[k] = f.nomes[k] && f.nomes[k] !== '—' ? f.nomes[k] + ', ' + it.n : it.n;
+          });
+        });
+      }
+    } catch (x) {}
     try {
       const [j, p] = await Promise.all([getJSON(base() + '/repertorios' + key), getJSON(base() + '/pdfs' + key).catch(() => null)]);
       if (!j) return DATA;
