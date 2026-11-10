@@ -6,6 +6,7 @@
 <title>Administrador · Louvor 4ª IPB GV</title>
 <meta name="robots" content="noindex">
 <script src="config.js"></script>
+<script src="quadro.js"></script>
 <style>
 :root{--bg:#f3f7f2;--surface:#fff;--ink:#1f2d24;--muted:#5d6f62;--green:#4f7a5c;--soft:#dfeadf;--line:#d6e2d6;--danger:#a3413b;--ok:#2f7d4a}
 @media (prefers-color-scheme:dark){:root{--bg:#141b16;--surface:#1c2620;--ink:#e3ece4;--muted:#9db1a2;--green:#8fbf9a;--soft:#24342a;--line:#2e3d33;--danger:#e58a83;--ok:#7fd19a}}
@@ -45,6 +46,7 @@ button:disabled{opacity:.6;cursor:default}
 .hidden{display:none!important}
 .who{font-size:.85rem;color:var(--muted)}
 h3.sub{margin:18px 0 8px;font-size:.95rem;color:var(--green)}
+.qsem{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px}.qsem label{flex-direction:row;align-items:center;gap:5px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;font-weight:700;cursor:pointer;color:var(--ink,inherit)}.qsem input{min-height:0}
 .qd{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line)}
 .qd input[type=checkbox]{width:20px;height:20px;min-height:0;accent-color:var(--green)}
 .qd .dt{min-width:150px;font-weight:700}.qd input.rot{flex:1;min-width:160px}
@@ -135,7 +137,10 @@ table.r th{background:var(--soft)}
     <label>Abre em<input type="date" id="q-abre"></label>
     <label>Fecha em<input type="date" id="q-fecha"></label>
   </div>
-  <h3 class="sub">Dias da escala</h3>
+  <h3 class="sub">Dias da semana com escala</h3>
+  <p class="hint" style="margin:0">Marque os dias da semana em que haverá culto com escala neste mês. A lista de datas abaixo é criada sozinha. Depois você pode desmarcar uma data ou dar uma descrição a ela.</p>
+  <div class="qsem" id="q-sem"></div>
+  <h3 class="sub">Datas da escala</h3>
   <div id="q-datas"></div>
   <div class="row" style="margin-top:8px">
     <label>Data extra<input type="date" id="q-extra"></label>
@@ -150,6 +155,10 @@ table.r th{background:var(--soft)}
   <div id="q-msg"></div>
   <h3 class="sub">Respostas <button type="button" class="link" id="q-atualizar" style="font-size:.85rem">atualizar</button></h3>
   <div id="q-resp"><p class="hint">Salve o questionário para começar a receber respostas.</p></div>
+  <h3 class="sub">Montar a escala</h3>
+  <div id="q-quadro"><p class="hint">O quadro aparece quando o questionário estiver salvo.</p></div>
+  <div class="row" style="margin-top:10px"><button type="button" class="primary" id="q-quadro-salvar">💾 Salvar escala montada</button></div>
+  <div id="q-quadro-msg"></div>
 </div>
 
 <div class="card hidden" id="v-gerais">
@@ -404,6 +413,22 @@ function domingosDo(mes) {
   for (let d = new Date(y, m - 1, 1, 12); d.getMonth() === m - 1; d.setDate(d.getDate() + 1)) if (d.getDay() === 0) out.push(ymdL(d));
   return out;
 }
+function diasDo(mes, dias) {
+  const [y, m] = mes.split('-').map(Number); const out = [];
+  for (let d = new Date(y, m - 1, 1, 12); d.getMonth() === m - 1; d.setDate(d.getDate() + 1)) if (dias.includes(d.getDay())) out.push(ymdL(d));
+  return out;
+}
+let qSem = [0], qQuadro = null;
+function desenhaSem() {
+  $('#q-sem').innerHTML = DIAS_SEM.map((d, i) => `<label><input type="checkbox" value="${i}"${qSem.includes(i) ? ' checked' : ''}> ${d[0].toUpperCase() + d.slice(1)}</label>`).join('');
+  $('#q-sem').querySelectorAll('input').forEach(c => c.onchange = () => {
+    lerDatas(); qSem = [...$('#q-sem').querySelectorAll('input:checked')].map(x => +x.value);
+    const novas = diasDo($('#q-mes').value, qSem);
+    qDatas = qDatas.filter(x => x.extra || novas.includes(x.data));
+    novas.forEach(d => { if (!qDatas.some(x => x.data === d)) qDatas.push({ data: d, rotulo: '', on: true }); });
+    qDatas.sort((a, b) => a.data.localeCompare(b.data)); desenhaDatas();
+  });
+}
 function padraoDatas(mes) {
   const ds = domingosDo(mes).map(d => ({ data: d, rotulo: '', on: true }));
   if (mes.endsWith('-12')) ds.push({ data: mes + '-31', rotulo: 'Culto de Ano Novo', on: true });
@@ -418,10 +443,15 @@ function iniciaQuest() {
   $('#q-mes').onchange = carregaQuest;
   $('#q-add').onclick = () => {
     const dt = $('#q-extra').value; if (!dt) return;
-    lerDatas(); if (!qDatas.some(x => x.data === dt)) qDatas.push({ data: dt, rotulo: $('#q-extra-rot').value.trim(), on: true });
+    lerDatas(); if (!qDatas.some(x => x.data === dt)) qDatas.push({ data: dt, rotulo: $('#q-extra-rot').value.trim(), on: true, extra: true });
     qDatas.sort((a, b) => a.data.localeCompare(b.data)); $('#q-extra').value = ''; $('#q-extra-rot').value = ''; desenhaDatas();
   };
   $('#q-salvar').onclick = salvaQuest;
+  $('#q-quadro-salvar').onclick = async () => {
+    if (!qQuadro) { msg('#q-quadro-msg', 'Salve o questionário primeiro.', 'err'); return; }
+    try { await updateDoc(doc(db, 'questionarios', $('#q-mes').value), { quadro: qQuadro.get(), atualizado: serverTimestamp() }); msg('#q-quadro-msg', '✅ Escala montada salva.', 'ok'); }
+    catch (e) { msg('#q-quadro-msg', 'Não consegui salvar: ' + esc(e.code || e.message), 'err'); }
+  };
   $('#q-atualizar').onclick = () => carregaRespostas($('#q-mes').value);
   $('#q-copiar').onclick = async () => {
     const link = SITE + 'escala.html';
@@ -437,12 +467,15 @@ async function carregaQuest() {
   $('#q-abre').value = q ? q.abre : ant + '-17';
   $('#q-fecha').value = q ? q.fecha : ant + '-24';
   $('#q-funcoes').value = (q ? q.funcoes : FUNCOES_PADRAO).join(', ');
+  qSem = q && q.dias ? q.dias : [0];
   if (q) {
-    qDatas = q.datas.map(d => ({ ...d, on: true }));
-    domingosDo(mes).forEach(d => { if (!qDatas.some(x => x.data === d)) qDatas.push({ data: d, rotulo: '', on: false }); });
+    const base = diasDo(mes, qSem);
+    qDatas = q.datas.map(d => ({ ...d, on: true, extra: !base.includes(d.data) }));
+    base.forEach(d => { if (!qDatas.some(x => x.data === d)) qDatas.push({ data: d, rotulo: '', on: false }); });
     qDatas.sort((a, b) => a.data.localeCompare(b.data));
-  } else qDatas = padraoDatas(mes);
-  desenhaDatas();
+  } else qDatas = padraoDatas(mes).map(d => ({ ...d, extra: !d.data.endsWith('-31') ? false : true }));
+  desenhaSem(); desenhaDatas();
+  if (!q) { $('#q-quadro').innerHTML = '<p class="hint">O quadro aparece quando o questionário estiver salvo.</p>'; qQuadro = null; }
   if (q) carregaRespostas(mes); else $('#q-resp').innerHTML = '<p class="hint">Este mês ainda não tem questionário salvo.</p>';
 }
 function desenhaDatas() {
@@ -465,8 +498,8 @@ async function salvaQuest() {
   if (!datas.length || !funcoes.length) { msg('#q-msg', 'Marque pelo menos um dia e uma função.', 'err'); return; }
   $('#q-salvar').disabled = true;
   try {
-    await setDoc(doc(db, 'questionarios', mes), {
-      mes, abre, fecha, datas, funcoes,
+    await setDoc(doc(db, 'questionarios', mes), { ...(qQuadro ? { quadro: qQuadro.get() } : {}),
+      mes, abre, fecha, datas, funcoes, dias: qSem,
       abreTs: Timestamp.fromDate(new Date(abre + 'T00:00:00')), fechaTs: Timestamp.fromDate(new Date(fecha + 'T23:59:59')),
       autor: auth.currentUser.email, atualizado: serverTimestamp()
     });
@@ -492,6 +525,8 @@ async function carregaRespostas(mes) {
       <table class="r"><thead><tr><th>Nome</th><th>Dias</th><th>Funções</th></tr></thead><tbody>${resp.map(r => `<tr><td>${esc(r.nome)}</td><td>${r.datas.map(brD).join(', ')}</td><td>${esc(r.funcoes.join(', '))}</td></tr>`).join('') || '<tr><td colspan="3" class="hint">Nenhuma resposta ainda.</td></tr>'}</tbody></table>
       <h3 class="sub">Ainda não responderam (${faltam.length})</h3>
       <p>${faltam.map(m => esc(m.nome)).join(', ') || '<span class="hint">Todos os cadastrados já responderam.</span>'}</p>`;
+    const pessoas = [...resp.map(r => ({ nome: r.nome, datas: r.datas, funcoes: r.funcoes })), ...faltam.map(m => ({ nome: m.nome, datas: null, funcoes: [] }))];
+    qQuadro = window.QuadroEscala($('#q-quadro'), { datas: q.datas, pessoas, funcoes: q.funcoes || [], quadro: q.quadro || {}, onChange: () => msg('#q-quadro-msg', 'Alterações ainda não salvas.') });
   } catch (e) { $('#q-resp').innerHTML = '<p class="hint">Não consegui ler as respostas (' + esc(e.code || e.message) + ').</p>'; }
 }
 /* ---------- administradores gerais (só o dono) ---------- */

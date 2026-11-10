@@ -58,7 +58,7 @@ footer{color:var(--muted);font-size:.85rem;padding:30px 0 40px;text-align:center
   /* converte o formato do Firestore REST em objeto comum */
   const val = v => v.stringValue ?? v.integerValue ?? v.booleanValue ?? (v.arrayValue ? (v.arrayValue.values || []).map(val) : v.mapValue ? obj(v.mapValue.fields || {}) : null);
   const obj = f => Object.fromEntries(Object.entries(f).map(([k, v]) => [k, val(v)]));
-  let G, MUS = [], PROX = [];
+  let G, MUS = [], PROX = [], QUEST = null, MEMB = [];
   try {
     const [g, m] = await Promise.all([fetch(`${base}?key=${C.apiKey}`), fetch(`${base}/dados/musicas?key=${C.apiKey}`)]);
     if (!slug || !g.ok) throw 0;
@@ -69,6 +69,12 @@ footer{color:var(--muted);font-size:.85rem;padding:30px 0 40px;text-align:center
     const meses = [0, 1].map(k => { const d = new Date(hoje.getFullYear(), hoje.getMonth() + k, 1); return d.getFullYear() + '-' + p2(d.getMonth() + 1); });
     const pega = async id => { try { const r = await fetch(`${base}/dados/${id}?key=${C.apiKey}`); return r.ok ? (obj((await r.json()).fields || {}).lista || []) : []; } catch (e) { return []; } };
     const [e1, e2, r1, r2] = await Promise.all([pega('escala-' + meses[0]), pega('escala-' + meses[1]), pega('repertorio-' + meses[0]), pega('repertorio-' + meses[1])]);
+    /* questionário de disponibilidade aberto agora */
+    const doc1 = async id => { try { const r = await fetch(`${base}/dados/${id}?key=${C.apiKey}`); return r.ok ? obj((await r.json()).fields || {}) : null; } catch (e) { return null; } };
+    const hojeQ = hoje.getFullYear() + '-' + p2(hoje.getMonth() + 1) + '-' + p2(hoje.getDate());
+    const qs = await Promise.all([meses[0], meses[1], (() => { const d = new Date(hoje.getFullYear(), hoje.getMonth() + 2, 1); return d.getFullYear() + '-' + p2(d.getMonth() + 1); })()].map(m => doc1('quest-' + m)));
+    QUEST = qs.find(q => q && q.abre <= hojeQ && q.fecha >= hojeQ) || null;
+    if (QUEST) { const eq = await doc1('equipe'); MEMB = ((eq && eq.membros) || []).map(m => m.nome).filter(Boolean); }
     const hojeS = hoje.getFullYear() + '-' + p2(hoje.getMonth() + 1) + '-' + p2(hoje.getDate());
     const k = x => x.data + '|' + x.culto, cultos = {};
     [...e1, ...e2].forEach(x => { cultos[k(x)] = { data: x.data, culto: x.culto, hora: x.hora || '', folga: !!x.folga, p: x.p || [], itens: [] }; });
@@ -88,12 +94,39 @@ footer{color:var(--muted);font-size:.85rem;padding:30px 0 40px;text-align:center
   const cartao = c => `<div class="card"><div class="eyebrow">${fmtData(c.data)} · ${esc(c.culto)}${c.hora ? ' · ' + esc(c.hora) : ''}</div>
     ${c.itens.length ? `<ol class="lit">${c.itens.map(i => `<li><span class="art">${esc(i.mo)}:</span> <b>${esc(i.t)}</b>${linksMus(i.t)}</li>`).join('')}</ol>` : '<p class="empty">Repertório ainda não publicado.</p>'}
     ${c.p.length ? `<p style="margin:10px 0 0;font-size:.9rem">${agrupa(c.p).map(([f, ns]) => `<b>${esc(f)}:</b> ${esc(ns.join(', '))}`).join(' · ')}</p>` : ''}</div>`;
+  const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  const slug2 = t => norm(t).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);
+  const formDisp = () => `<section id="disponibilidade"><h2>Disponibilidade para a escala de ${MESES[+QUEST.mes.slice(5) - 1]}</h2>
+    <p class="lead">Marque os dias em que você pode servir e onde pode ser escalado. Aberto até ${QUEST.fecha.split('-').reverse().join('/')}. Se responder de novo com o mesmo nome, a resposta anterior é trocada.</p>
+    <form class="card" id="f-disp" style="display:grid;gap:14px;max-width:640px">
+      <label style="display:grid;gap:4px;font-weight:700">Nome completo<input id="dp-nome" list="dp-membros" required minlength="5" maxlength="100" autocomplete="name" style="font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)"></label>
+      <datalist id="dp-membros">${MEMB.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+      <fieldset style="border:1px solid var(--line);border-radius:10px"><legend><b>Dias em que posso</b></legend>${(QUEST.datas || []).map(d => `<label style="display:flex;gap:8px;align-items:center;padding:4px 0"><input type="checkbox" name="dp-d" value="${d.data}"> ${fmtData(d.data)}${d.rotulo ? ' · ' + esc(d.rotulo) : ''}</label>`).join('')}</fieldset>
+      <fieldset style="border:1px solid var(--line);border-radius:10px"><legend><b>Onde posso ser escalado</b></legend>${(QUEST.funcoes || []).map(f => `<label style="display:flex;gap:8px;align-items:center;padding:4px 0"><input type="checkbox" name="dp-f" value="${esc(f)}"> ${esc(f)}</label>`).join('')}</fieldset>
+      <button type="submit" style="font:inherit;font-weight:700;background:var(--cor);color:#fff;border:0;border-radius:999px;padding:12px 18px;cursor:pointer">Enviar minha disponibilidade</button>
+      <p id="dp-msg" class="empty" style="margin:0"></p>
+    </form></section>`;
+  const enviaDisp = async e => {
+    e.preventDefault();
+    const nome = document.getElementById('dp-nome').value.replace(/\s+/g, ' ').trim(), m = document.getElementById('dp-msg');
+    const datas = [...document.querySelectorAll('input[name=dp-d]:checked')].map(i => i.value), funcoes = [...document.querySelectorAll('input[name=dp-f]:checked')].map(i => i.value);
+    if (nome.split(' ').length < 2) { m.textContent = 'Escreva o nome completo.'; return; }
+    if (!datas.length) { m.textContent = 'Marque pelo menos um dia.'; return; }
+    const chave = slug2(nome), arr = a => ({ arrayValue: { values: a.map(v => ({ stringValue: v })) } });
+    const body = { fields: { mes: { stringValue: QUEST.mes }, chave: { stringValue: chave }, nome: { stringValue: nome }, datas: arr(datas), funcoes: arr(funcoes), atualizado: { timestampValue: new Date().toISOString() } } };
+    m.textContent = 'Enviando…';
+    try {
+      const r = await fetch(`${base}/respostas/${encodeURIComponent(QUEST.mes + '__' + chave)}?key=${C.apiKey}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      m.textContent = r.ok ? '✅ Recebido! Obrigado, ' + nome.split(' ')[0] + '.' : 'Não consegui enviar agora. O questionário pode ter fechado. Tente de novo ou fale com o administrador.';
+    } catch (err) { m.textContent = 'Sem conexão. Tente de novo.'; }
+  };
   const momentos = [...new Set((G.liturgia || []).flatMap(c => c.momentos))].filter(m => !/am[eé]m/i.test(m));
   app.innerHTML = `
   <header><div class="wrap">${G.logo ? `<img src="${G.logo}" alt="Logo da ${esc(G.igreja)}">` : ''}
     <div><h1>${esc(G.equipe || 'Equipe de Louvor')}</h1><p>${esc(G.igreja)}${G.cidade ? ' · ' + esc(G.cidade) : ''}</p></div></div></header>
-  <nav><div class="wrap"><a href="#domingo">Próximos cultos</a><a href="#escala">Escala</a><a href="#liturgia">Liturgia</a><a href="#repertorio">Repertório</a></div></nav>
+  <nav><div class="wrap">${QUEST ? '<a href="#disponibilidade">🗓️ Disponibilidade</a>' : ''}<a href="#domingo">Próximos cultos</a><a href="#escala">Escala</a><a href="#liturgia">Liturgia</a><a href="#repertorio">Repertório</a></div></nav>
   <main class="wrap">
+    ${QUEST ? formDisp() : ''}
     <section id="domingo"><h2>Próximos cultos</h2><p class="lead">Quem está escalado e o que vamos cantar.</p>
       ${PROX.length ? `<div class="grid">${PROX.slice(0, 3).map(cartao).join('')}</div>` : '<div class="card"><p class="empty" style="margin:0">A escala e o repertório dos próximos cultos ainda não foram publicados.</p></div>'}</section>
     <section id="escala"><h2>Escala</h2><p class="lead">Escala deste mês e do próximo.</p>
@@ -116,6 +149,7 @@ footer{color:var(--muted);font-size:.85rem;padding:30px 0 40px;text-align:center
       <td class="lk">${m.yt ? `<a href="${esc(m.yt)}" target="_blank" rel="noopener">▶️ YouTube</a>` : ''}<a href="${esc(m.cc || ('https://www.cifraclub.com.br/?q=' + encodeURIComponent(m.t + ' ' + (m.art || ''))))}" target="_blank" rel="noopener">🎸 Cifra</a></td></tr>`).join('')
       || '<tr><td colspan="3" class="empty">Nenhuma música encontrada.</td></tr>';
   };
+  if (QUEST) document.getElementById('f-disp').onsubmit = enviaDisp;
   document.getElementById('q').oninput = desenha; document.getElementById('fm').onchange = desenha; desenha();
 })();
 </script>
