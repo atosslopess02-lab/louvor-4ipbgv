@@ -150,6 +150,15 @@ table.r th{background:var(--soft)}
   <p class="hint">Dica: para ter duas pessoas na mesma função, use “+ Incluir pessoa” e repita a função. Para tirar alguém, toque em ✕.</p>
 </div>
 
+<div class="card hidden" id="v-lemb">
+  <h2>Lembretes de terça</h2>
+  <p class="lead">Toda terça-feira, quem está escalado para o domingo seguinte recebe um e-mail de lembrete. Aqui você confere quem vai receber e liga cada nome da escala à conta da pessoa. A equipe cria a conta na página <a href="escala.html" target="_blank">Disponibilidade</a>.</p>
+  <div class="row" style="align-items:flex-end"><label>Domingo<input type="date" id="l-data"></label><button type="button" id="l-ver">Ver</button></div>
+  <div id="l-lista" style="margin-top:12px"><p class="hint">Carregando…</p></div>
+  <div class="row" style="margin-top:12px"><button type="button" class="primary" id="l-salvar">💾 Salvar ligações</button></div>
+  <div id="l-msg"></div>
+</div>
+
 <div class="card hidden" id="v-quest">
   <h2>Questionário da escala</h2>
   <p class="lead">Monte aqui o questionário de disponibilidade do próximo mês. A equipe responde na página <a href="escala.html" target="_blank">Disponibilidade para a escala</a>, só no período escolhido. Para responder, cada pessoa faz um cadastro simples com o nome completo.</p>
@@ -201,7 +210,7 @@ import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, qu
 const CFG = window.LOUVOR_CONFIG || {};
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const show = (...ids) => { ['v-config','v-login','v-espera','v-verificar','v-aprov','v-rep','v-escala','v-quest','v-gerais'].forEach(id => $('#'+id).classList.toggle('hidden', !ids.includes(id))); };
+const show = (...ids) => { ['v-config','v-login','v-espera','v-verificar','v-aprov','v-rep','v-escala','v-lemb','v-quest','v-gerais'].forEach(id => $('#'+id).classList.toggle('hidden', !ids.includes(id))); };
 const msg = (el, text, kind='') => { $(el).innerHTML = text ? `<div class="msg ${kind}">${text}</div>` : ''; };
 const DONO = String(CFG.dono || '').toLowerCase();
 const SITE = location.origin + location.pathname.replace(/[^/]*$/, '');
@@ -277,15 +286,15 @@ async function entrouComo(u) {
   const ehDono = (u.email || '').toLowerCase() === DONO;
   if (ehDono) {
     if (!u.emailVerified) { $('#ver-email').textContent = u.email; show('v-verificar'); return; }
-    show('v-aprov', 'v-rep', 'v-escala', 'v-quest', 'v-gerais');
+    show('v-aprov', 'v-rep', 'v-escala', 'v-lemb', 'v-quest', 'v-gerais');
     await carregaPendentes();
-    iniciaEditor(); iniciaEscala(); iniciaQuest(); carregaGerais();
+    iniciaEditor(); iniciaEscala(); iniciaLembretes(); iniciaQuest(); carregaGerais();
     return;
   }
   let aprovado = false;
   try { const s = await getDoc(doc(db, 'usuarios', u.uid)); aprovado = s.exists() && s.data().aprovado === true; } catch (e) {}
   if (!aprovado) { show('v-espera'); return; }
-  show('v-rep', 'v-escala', 'v-quest'); iniciaEditor(); iniciaEscala(); iniciaQuest();
+  show('v-rep', 'v-escala', 'v-lemb', 'v-quest'); iniciaEditor(); iniciaEscala(); iniciaLembretes(); iniciaQuest();
 }
 
 /* ---------- aprovações (só o dono) ---------- */
@@ -635,6 +644,56 @@ async function salvaEscala() {
     else $('#e-origem').textContent = DIAS_SEM[new Date(d + 'T12:00:00').getDay()] + ', ' + brDt(d) + ' · Escala já ajustada aqui no painel.';
   } catch (e) { msg('#e-msg', 'Não consegui salvar: ' + esc(e.code || e.message), 'err'); }
   $('#e-salvar').disabled = false;
+}
+
+/* ---------- lembretes de terça: quem está escalado no domingo e o e-mail de cada um ---------- */
+const normN = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const proxDomingo = () => { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + ((7 - d.getDay()) % 7)); return ymdL(d); };
+async function escalaDoDia(d) {
+  try { const s = await getDoc(doc(db, 'escalas', d)); if (s.exists()) return JSON.parse(s.data().json).itens || []; } catch (e) {}
+  const D = await siteData(); const E = D.escala || { domingos: [], funcoes: [] }; const k = E.domingos.indexOf(d); if (k < 0) return [];
+  const o = []; E.funcoes.forEach(f => { const n = f.nomes[k]; if (n && n !== '—') n.split(/\s*,\s*/).forEach(x => o.push({ f: f.f, n: x })); }); return o;
+}
+async function dadosLembretes(d) {
+  d = d || proxDomingo();
+  const itens = await escalaDoDia(d);
+  const membros = (await getDocs(collection(db, 'membros'))).docs.map(x => ({ id: x.id, ...x.data() })).filter(m => m.email);
+  let lig = {}; try { const s = await getDoc(doc(db, 'lembretes', 'ligacoes')); if (s.exists()) lig = s.data().mapa || {}; } catch (e) {}
+  const acha = n => {
+    const k = normN(n); if (lig[k]) return membros.find(m => m.id === lig[k]) || null;
+    for (const teste of [m => normN(m.apelido) === k, m => normN(m.nome) === k, m => (normN(m.nome) + ' ').startsWith(k + ' ')]) { const c = membros.filter(teste); if (c.length === 1) return c[0]; }
+    return null;
+  };
+  const itensLig = itens.map(it => ({ ...it, m: acha(it.n) }));
+  const pessoas = {};
+  itensLig.forEach(it => { if (!it.m) return; const p = pessoas[it.m.id] = pessoas[it.m.id] || { nome: it.m.nome, email: it.m.email, nomeNaEscala: it.n, funcoes: [] }; if (!p.funcoes.includes(it.f)) p.funcoes.push(it.f); });
+  return { data: d, dataBr: brDt(d), pessoas: Object.values(pessoas), semConta: itensLig.filter(it => !it.m).map(it => ({ n: it.n, f: it.f })), itensLig, membros, lig };
+}
+/* usado pela tarefa semanal de terça: devolve quem recebe o lembrete do próximo domingo */
+window.lembretesDomingo = async d => { const r = await dadosLembretes(d); return { data: r.data, dataBr: r.dataBr, pessoas: r.pessoas, semConta: r.semConta }; };
+let lemIniciado = false, LEM = null;
+async function iniciaLembretes() {
+  if (lemIniciado) return; lemIniciado = true;
+  $('#l-data').value = proxDomingo();
+  $('#l-ver').onclick = desenhaLembretes; $('#l-data').onchange = desenhaLembretes;
+  $('#l-salvar').onclick = async () => {
+    if (!LEM) return; const mapa = { ...LEM.lig };
+    $('#l-lista').querySelectorAll('select[data-n]').forEach(s => { const k = normN(s.dataset.n); if (s.value) mapa[k] = s.value; else delete mapa[k]; });
+    try { await setDoc(doc(db, 'lembretes', 'ligacoes'), { mapa, atualizado: serverTimestamp() }); msg('#l-msg', '✅ Ligações salvas.', 'ok'); desenhaLembretes(); }
+    catch (e) { msg('#l-msg', 'Não consegui salvar: ' + esc(e.code || e.message), 'err'); }
+  };
+  desenhaLembretes();
+}
+async function desenhaLembretes() {
+  $('#l-lista').innerHTML = '<p class="hint">Carregando…</p>';
+  try { LEM = await dadosLembretes($('#l-data').value); } catch (e) { $('#l-lista').innerHTML = '<p class="hint">Não consegui ler (' + esc(e.code || e.message) + ').</p>'; return; }
+  if (!LEM.itensLig.length) { $('#l-lista').innerHTML = `<p class="hint">Não há escala para ${LEM.dataBr}.</p>`; return; }
+  const ops = sel => '<option value="">— sem conta (não recebe) —</option>' + LEM.membros.slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map(m => `<option value="${m.id}"${m.id === sel ? ' selected' : ''}>${esc(m.nome)} · ${esc(m.email)}</option>`).join('');
+  const vistos = new Set();
+  $('#l-lista').innerHTML = `<p><b>${LEM.pessoas.length}</b> pessoa(s) vão receber o lembrete de ${LEM.dataBr}${LEM.semConta.length ? ` · <b>${LEM.semConta.length}</b> nome(s) da escala sem conta ligada` : ''}.</p>` +
+    LEM.itensLig.filter(it => { const k = normN(it.n); if (vistos.has(k)) return false; vistos.add(k); return true; }).map(it => `<div class="erow"><span><b>${esc(it.n)}</b><br><span class="hint">${esc(LEM.itensLig.filter(x => normN(x.n) === normN(it.n)).map(x => x.f).join(', '))}</span></span>
+      <select data-n="${esc(it.n)}">${ops(it.m && it.m.id)}</select><span>${it.m ? '✅' : '⚠️'}</span></div>`).join('') +
+    (LEM.membros.length ? '' : '<p class="hint">Ninguém da equipe criou conta ainda.</p>');
 }
 
 /* ---------- administradores gerais (só o dono) ---------- */

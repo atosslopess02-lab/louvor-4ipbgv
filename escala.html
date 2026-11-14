@@ -31,6 +31,10 @@ button:disabled{opacity:.6}
 .msg.err{background:#f9e1df;color:#7a2620}.msg.ok{background:#dff1e4;color:#1d5a32}
 @media (prefers-color-scheme:dark){.msg.err{background:#3b2220;color:#f2b5ae}.msg.ok{background:#1f3a28;color:#b8e6c6}}
 .hint{font-size:.85rem;color:var(--muted)}
+.hidden{display:none!important}
+input[type=email],input[type=password]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;min-height:44px}
+.abas{display:flex;gap:6px;margin:4px 0 14px}.abas button{flex:1}.abas button.on{background:var(--green);color:#fff;border-color:var(--green)}
+.link{background:none;border:0;padding:0;min-height:0;color:var(--green);text-decoration:underline;font-weight:600}
 .prazo{display:inline-block;background:#fff3d6;color:#7a5200;border-radius:999px;padding:3px 12px;font-weight:700;font-size:.85rem;margin-bottom:10px}
 @media (prefers-color-scheme:dark){.prazo{background:#3a2c12;color:#f0c46a}}
 </style>
@@ -39,98 +43,144 @@ button:disabled{opacity:.6}
 <div class="bar"><h1>🗓️ Disponibilidade para a escala</h1><a class="btn" href="./">← Site</a></div>
 <main>
 
-<div class="card" id="c-quest"><p class="hint">Carregando…</p></div>
+<div class="card" id="c-conta"><p class="hint">Carregando…</p></div>
 
-<div class="card">
-  <h2>Cadastro da equipe</h2>
-  <p class="lead">Faça o cadastro uma vez só, com seu nome completo. No questionário da escala, escreva o nome exatamente como cadastrou.</p>
-  <form id="f-cad">
-    <label class="f">Nome completo<input type="text" id="cad-nome" autocomplete="name" required minlength="5"></label>
-    <button class="primary" type="submit">Cadastrar</button>
-  </form>
-  <div id="cad-msg"></div>
-</div>
+<div class="card hidden" id="c-quest"></div>
 
 </main>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, updateProfile, signOut } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, collection, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const CFG = window.LOUVOR_CONFIG || {};
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const msg = (el, t, k = '') => { $(el).innerHTML = t ? `<div class="msg ${k}">${t}</div>` : ''; };
-/* nome → chave: sem acentos, minúsculo, espaços viram hífen (assim "José da Silva" e "jose  da silva" são a mesma pessoa) */
-const chave = n => String(n || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+const msg = (el, t, k = '') => { const x = $(el); if (x) x.innerHTML = t ? `<div class="msg ${k}">${t}</div>` : ''; };
 const limpaNome = n => String(n || '').trim().replace(/\s+/g, ' ');
 const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 const DIAS = ['domingo','segunda','terça','quarta','quinta','sexta','sábado'];
 const br = d => d.split('-').reverse().slice(0, 2).join('/');
 const nomeMes = m => MESES[+m.slice(5, 7) - 1] + ' de ' + m.slice(0, 4);
+const ERROS = { 'auth/invalid-credential': 'E-mail ou senha errados.', 'auth/wrong-password': 'Senha errada.', 'auth/user-not-found': 'Não há conta com este e-mail. Toque em “Criar conta”.', 'auth/email-already-in-use': 'Já existe uma conta com este e-mail. Toque em “Entrar”.', 'auth/weak-password': 'A senha precisa ter pelo menos 6 caracteres.', 'auth/invalid-email': 'Este e-mail não parece certo.', 'auth/too-many-requests': 'Muitas tentativas. Espere um pouco e tente de novo.' };
+const erro = e => ERROS[e.code] || 'Não deu certo agora. Tente de novo.';
 
-if (!CFG.firebase || !CFG.firebase.apiKey) { $('#c-quest').innerHTML = '<p class="hint">Ainda não configurado.</p>'; throw new Error('sem config'); }
-const db = getFirestore(initializeApp(CFG.firebase));
+if (!CFG.firebase || !CFG.firebase.apiKey) { $('#c-conta').innerHTML = '<p class="hint">Ainda não configurado.</p>'; throw new Error('sem config'); }
+const app = initializeApp(CFG.firebase), auth = getAuth(app), db = getFirestore(app);
+let PERFIL = null;
 
-/* ---------- cadastro ---------- */
-$('#f-cad').onsubmit = async e => {
-  e.preventDefault();
-  const nome = limpaNome($('#cad-nome').value), k = chave(nome);
-  if (nome.split(' ').length < 2) { msg('#cad-msg', 'Escreva o nome completo (nome e sobrenome).', 'err'); return; }
-  try {
-    const ref = doc(db, 'membros', k);
-    if ((await getDoc(ref)).exists()) { msg('#cad-msg', `<b>${esc(nome)}</b> já está cadastrado(a). É só responder o questionário.`, 'ok'); return; }
-    await setDoc(ref, { nome, criado: serverTimestamp() });
-    msg('#cad-msg', `✅ Cadastro feito: <b>${esc(nome)}</b>. Use este mesmo nome no questionário da escala.`, 'ok');
-    if ($('#q-nome') && !$('#q-nome').value) $('#q-nome').value = nome;
-  } catch (err) { msg('#cad-msg', 'Não consegui cadastrar agora. Tente de novo.', 'err'); }
-};
+/* ---------- conta: entrar / criar ---------- */
+function telaLogin(aba = 'entrar') {
+  $('#c-quest').classList.add('hidden');
+  $('#c-conta').innerHTML = `
+    <h2>Entre para marcar sua disponibilidade</h2>
+    <p class="lead">Cada pessoa da equipe tem uma conta com e-mail e senha. Toda terça-feira, quem estiver escalado para o domingo recebe um lembrete neste e-mail.</p>
+    <div class="abas"><button type="button" data-aba="entrar" class="${aba === 'entrar' ? 'on' : ''}">Entrar</button><button type="button" data-aba="criar" class="${aba === 'criar' ? 'on' : ''}">Criar conta</button></div>
+    ${aba === 'entrar' ? `
+    <form id="f-entrar">
+      <label class="f">E-mail<input type="email" id="l-email" autocomplete="email" required></label>
+      <label class="f">Senha<input type="password" id="l-senha" autocomplete="current-password" required minlength="6"></label>
+      <button class="primary" type="submit">Entrar</button>
+      <p class="hint" style="margin-top:12px"><button type="button" class="link" id="esqueci">Esqueci a senha</button></p>
+    </form>` : `
+    <form id="f-criar">
+      <label class="f">Nome completo<input type="text" id="c-nome" autocomplete="name" required minlength="5"></label>
+      <label class="f">Como seu nome aparece na escala <span class="hint" style="font-weight:400">(opcional, ex.: Livia, Pr. Atos)</span><input type="text" id="c-apelido" maxlength="40"></label>
+      <label class="f">E-mail<input type="email" id="c-email" autocomplete="email" required></label>
+      <label class="f">Senha <span class="hint" style="font-weight:400">(pelo menos 6 letras ou números)</span><input type="password" id="c-senha" autocomplete="new-password" required minlength="6"></label>
+      <button class="primary" type="submit">Criar conta</button>
+    </form>`}
+    <div id="conta-msg"></div>`;
+  document.querySelectorAll('[data-aba]').forEach(b => b.onclick = () => telaLogin(b.dataset.aba));
+  if (aba === 'entrar') {
+    $('#f-entrar').onsubmit = async e => {
+      e.preventDefault(); msg('#conta-msg', 'Entrando…');
+      try { await signInWithEmailAndPassword(auth, $('#l-email').value.trim(), $('#l-senha').value); } catch (err) { msg('#conta-msg', erro(err), 'err'); }
+    };
+    $('#esqueci').onclick = async () => {
+      const em = $('#l-email').value.trim(); if (!em) { msg('#conta-msg', 'Escreva seu e-mail acima e toque de novo em “Esqueci a senha”.', 'err'); return; }
+      try { await sendPasswordResetEmail(auth, em); msg('#conta-msg', 'Enviamos um e-mail para você criar uma senha nova. Veja também a caixa de spam.', 'ok'); } catch (err) { msg('#conta-msg', erro(err), 'err'); }
+    };
+  } else {
+    $('#f-criar').onsubmit = async e => {
+      e.preventDefault();
+      const nome = limpaNome($('#c-nome').value), apelido = limpaNome($('#c-apelido').value);
+      if (nome.split(' ').length < 2) { msg('#conta-msg', 'Escreva o nome completo (nome e sobrenome).', 'err'); return; }
+      msg('#conta-msg', 'Criando sua conta…');
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, $('#c-email').value.trim(), $('#c-senha').value);
+        await updateProfile(cred.user, { displayName: nome }).catch(() => {});
+        await salvaPerfil(cred.user, nome, apelido);
+        entrou(cred.user);
+      } catch (err) { msg('#conta-msg', erro(err), 'err'); }
+    };
+  }
+}
+async function salvaPerfil(u, nome, apelido) {
+  PERFIL = { uid: u.uid, nome, apelido: apelido || '', email: (u.email || '').toLowerCase() };
+  await setDoc(doc(db, 'membros', u.uid), { ...PERFIL, atualizado: serverTimestamp() }, { merge: true });
+}
+onAuthStateChanged(auth, u => u ? entrou(u) : telaLogin());
+async function entrou(u) {
+  if (!PERFIL || PERFIL.uid !== u.uid) {
+    PERFIL = null;
+    try { const p = await getDoc(doc(db, 'membros', u.uid)); if (p.exists()) PERFIL = { uid: u.uid, ...p.data() }; } catch (e) {}
+  }
+  if (!PERFIL) { /* conta criada mas sem perfil (raro): completa o cadastro */
+    $('#c-quest').classList.add('hidden');
+    $('#c-conta').innerHTML = `<h2>Complete seu cadastro</h2><form id="f-perfil"><label class="f">Nome completo<input type="text" id="p-nome" value="${esc(u.displayName || '')}" required minlength="5"></label><label class="f">Como seu nome aparece na escala (opcional)<input type="text" id="p-apelido" maxlength="40"></label><button class="primary" type="submit">Salvar</button></form><div id="conta-msg"></div>`;
+    $('#f-perfil').onsubmit = async e => { e.preventDefault(); const nome = limpaNome($('#p-nome').value); if (nome.split(' ').length < 2) { msg('#conta-msg', 'Escreva o nome completo.', 'err'); return; } try { await salvaPerfil(u, nome, limpaNome($('#p-apelido').value)); entrou(u); } catch (err) { msg('#conta-msg', 'Não consegui salvar. Tente de novo.', 'err'); } };
+    return;
+  }
+  $('#c-conta').innerHTML = `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:200px"><b>Olá, ${esc(PERFIL.nome.split(' ')[0])}!</b><br><span class="hint">${esc(PERFIL.email)} · os lembretes de terça chegam neste e-mail</span></div><button type="button" id="sair">Sair</button></div>`;
+  $('#sair').onclick = () => { PERFIL = null; signOut(auth); };
+  carrega();
+}
 
 /* ---------- questionário do mês ---------- */
 async function carrega() {
+  const box = $('#c-quest'); box.classList.remove('hidden'); box.innerHTML = '<p class="hint">Carregando o questionário…</p>';
   const hoje = new Date();
   let qs = [];
   try { qs = (await getDocs(collection(db, 'questionarios'))).docs.map(d => ({ mes: d.id, ...d.data() })); } catch (e) {}
   const aberto = qs.find(q => q.abreTs && q.fechaTs && hoje >= q.abreTs.toDate() && hoje <= q.fechaTs.toDate());
   if (!aberto) {
     const prox = qs.filter(q => q.abreTs && q.abreTs.toDate() > hoje).sort((a, b) => a.abreTs.toMillis() - b.abreTs.toMillis())[0];
-    $('#c-quest').innerHTML = `<h2>Questionário da escala</h2><p class="lead">${prox
-      ? `O questionário da escala de <b>${nomeMes(prox.mes)}</b> abre em <b>${br(prox.abre)}</b> e fica disponível até <b>${br(prox.fecha)}</b>.`
-      : 'Nenhum questionário aberto no momento. Quando a escala do próximo mês for montada, ele aparece aqui.'}</p><p class="hint">Enquanto isso, já dá para fazer o cadastro abaixo.</p>`;
+    box.innerHTML = `<h2>Questionário da escala</h2><p class="lead">${prox
+      ? `O questionário da escala de <b>${nomeMes(prox.mes)}</b> abre em <b>${br(prox.abre)}</b> e fica disponível até <b>${br(prox.fecha)}</b>. Volte aqui nesse período.`
+      : 'Nenhum questionário aberto no momento. Quando a escala do próximo mês for montada, ele aparece aqui.'}</p>`;
     return;
   }
-  const q = aberto;
-  $('#c-quest').innerHTML = `
+  const q = aberto, id = q.mes + '__' + PERFIL.uid;
+  let ant = null; try { const r = await getDoc(doc(db, 'respostas', id)); if (r.exists()) ant = r.data(); } catch (e) {}
+  const marc = (lista, v) => ant && (ant[lista] || []).includes(v) ? ' checked' : '';
+  box.innerHTML = `
     <span class="prazo">Responda até ${br(q.fecha)}</span>
     <h2>Escala de ${esc(nomeMes(q.mes))}</h2>
-    <p class="lead">Escolha os dias em que pode participar e onde podemos escalar você. Se precisar mudar, é só enviar de novo até o prazo.</p>
+    <p class="lead">Marque os dias em que pode participar e onde podemos escalar você. ${ant ? '<b>Você já respondeu</b>: suas marcações estão abaixo. Se mudar algo, envie de novo.' : 'Se precisar mudar depois, é só enviar de novo até o prazo.'}</p>
     <form id="f-q">
-      <label class="f">Seu nome (igual ao cadastro)<input type="text" id="q-nome" autocomplete="name" required></label>
       <fieldset><legend>Dias que vai poder participar</legend>${q.datas.map(d => {
         const dt = new Date(d.data + 'T12:00:00');
-        return `<label class="op"><input type="checkbox" name="d" value="${d.data}"><span><b>${br(d.data)}</b> <small>(${DIAS[dt.getDay()]})${d.rotulo ? ' · ' + esc(d.rotulo) : ''}</small></span></label>`;
+        return `<label class="op"><input type="checkbox" name="d" value="${d.data}"${marc('datas', d.data)}><span><b>${br(d.data)}</b> <small>(${DIAS[dt.getDay()]})${d.rotulo ? ' · ' + esc(d.rotulo) : ''}</small></span></label>`;
       }).join('')}</fieldset>
-      <fieldset><legend>Onde podemos escalar você?</legend>${q.funcoes.map(f => `<label class="op"><input type="checkbox" name="f" value="${esc(f)}"><span>${esc(f)}</span></label>`).join('')}</fieldset>
-      <button class="primary" type="submit">Enviar</button>
+      <fieldset><legend>Onde podemos escalar você?</legend>${q.funcoes.map(f => `<label class="op"><input type="checkbox" name="f" value="${esc(f)}"${marc('funcoes', f)}><span>${esc(f)}</span></label>`).join('')}</fieldset>
+      <button class="primary" type="submit">${ant ? 'Enviar de novo' : 'Enviar'}</button>
     </form>
     <div id="q-msg"></div>`;
   $('#f-q').onsubmit = async e => {
     e.preventDefault();
-    const nome = limpaNome($('#q-nome').value), k = chave(nome);
     const datas = [...document.querySelectorAll('input[name=d]:checked')].map(i => i.value);
     const funcoes = [...document.querySelectorAll('input[name=f]:checked')].map(i => i.value);
     if (!datas.length) { msg('#q-msg', 'Marque pelo menos um dia.', 'err'); return; }
     if (!funcoes.length) { msg('#q-msg', 'Marque pelo menos uma função.', 'err'); return; }
     const b = $('#f-q button'); b.disabled = true; msg('#q-msg', 'Enviando…');
     try {
-      const m = await getDoc(doc(db, 'membros', k));
-      if (!m.exists()) { msg('#q-msg', `Não encontrei <b>${esc(nome)}</b> no cadastro. Confira se escreveu igual ao cadastro, ou faça o cadastro logo abaixo e envie de novo.`, 'err'); b.disabled = false; return; }
-      await setDoc(doc(db, 'respostas', q.mes + '__' + k), { mes: q.mes, chave: k, nome: m.data().nome, datas, funcoes, atualizado: serverTimestamp() });
-      msg('#q-msg', `✅ Obrigado, <b>${esc(m.data().nome)}</b>! Sua disponibilidade para ${esc(nomeMes(q.mes))} foi registrada.`, 'ok');
+      await setDoc(doc(db, 'respostas', id), { mes: q.mes, chave: PERFIL.uid, uid: PERFIL.uid, nome: PERFIL.nome, datas, funcoes, atualizado: serverTimestamp() });
+      msg('#q-msg', `✅ Obrigado, <b>${esc(PERFIL.nome.split(' ')[0])}</b>! Sua disponibilidade para ${esc(nomeMes(q.mes))} foi registrada.`, 'ok');
     } catch (err) { msg('#q-msg', 'Não consegui enviar agora (o prazo pode ter terminado). Tente de novo ou fale com o líder.', 'err'); }
     b.disabled = false;
   };
 }
-carrega();
 </script>
 </body>
 </html>
