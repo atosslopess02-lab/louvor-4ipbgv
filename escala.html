@@ -32,7 +32,7 @@ button:disabled{opacity:.6}
 @media (prefers-color-scheme:dark){.msg.err{background:#3b2220;color:#f2b5ae}.msg.ok{background:#1f3a28;color:#b8e6c6}}
 .hint{font-size:.85rem;color:var(--muted)}
 .hidden{display:none!important}
-input[type=email],input[type=password]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;min-height:44px}
+input[type=email],input[type=password],input[type=tel]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;min-height:44px}
 .abas{display:flex;gap:6px;margin:4px 0 14px}.abas button{flex:1}.abas button.on{background:var(--green);color:#fff;border-color:var(--green)}
 .link{background:none;border:0;padding:0;min-height:0;color:var(--green);text-decoration:underline;font-weight:600}
 .prazo{display:inline-block;background:#fff3d6;color:#7a5200;border-radius:999px;padding:3px 12px;font-weight:700;font-size:.85rem;margin-bottom:10px}
@@ -64,6 +64,9 @@ const br = d => d.split('-').reverse().slice(0, 2).join('/');
 const nomeMes = m => MESES[+m.slice(5, 7) - 1] + ' de ' + m.slice(0, 4);
 const ERROS = { 'auth/invalid-credential': 'E-mail ou senha errados.', 'auth/wrong-password': 'Senha errada.', 'auth/user-not-found': 'Não há conta com este e-mail. Toque em “Criar conta”.', 'auth/email-already-in-use': 'Já existe uma conta com este e-mail. Toque em “Entrar”.', 'auth/weak-password': 'A senha precisa ter pelo menos 6 caracteres.', 'auth/invalid-email': 'Este e-mail não parece certo.', 'auth/too-many-requests': 'Muitas tentativas. Espere um pouco e tente de novo.' };
 const erro = e => ERROS[e.code] || 'Não deu certo agora. Tente de novo.';
+/* WhatsApp: guarda só os números, com o 55 do Brasil na frente */
+const limpaWhats = t => { let d = String(t || '').replace(/\D/g, ''); if (d.length === 10 || d.length === 11) d = '55' + d; return /^55\d{10,11}$/.test(d) ? d : ''; };
+const mostraWhats = d => d ? `(${d.slice(2, 4)}) ${d.slice(4, -4)}-${d.slice(-4)}` : '';
 
 if (!CFG.firebase || !CFG.firebase.apiKey) { $('#c-conta').innerHTML = '<p class="hint">Ainda não configurado.</p>'; throw new Error('sem config'); }
 const app = initializeApp(CFG.firebase), auth = getAuth(app), db = getFirestore(app);
@@ -74,7 +77,7 @@ function telaLogin(aba = 'entrar') {
   $('#c-quest').classList.add('hidden');
   $('#c-conta').innerHTML = `
     <h2>Entre para marcar sua disponibilidade</h2>
-    <p class="lead">Cada pessoa da equipe tem uma conta com e-mail e senha. Toda terça-feira, quem estiver escalado para o domingo recebe um lembrete neste e-mail.</p>
+    <p class="lead">Cada pessoa da equipe tem uma conta com e-mail e senha. Toda terça-feira, quem estiver escalado para o domingo recebe um lembrete no WhatsApp e no e-mail.</p>
     <div class="abas"><button type="button" data-aba="entrar" class="${aba === 'entrar' ? 'on' : ''}">Entrar</button><button type="button" data-aba="criar" class="${aba === 'criar' ? 'on' : ''}">Criar conta</button></div>
     ${aba === 'entrar' ? `
     <form id="f-entrar">
@@ -86,7 +89,8 @@ function telaLogin(aba = 'entrar') {
     <form id="f-criar">
       <label class="f">Nome completo<input type="text" id="c-nome" autocomplete="name" required minlength="5"></label>
       <label class="f">Como seu nome aparece na escala <span class="hint" style="font-weight:400">(opcional, ex.: Livia, Pr. Atos)</span><input type="text" id="c-apelido" maxlength="40"></label>
-      <label class="f">E-mail<input type="email" id="c-email" autocomplete="email" required></label>
+      <label class="f">E-mail que você usa<input type="email" id="c-email" autocomplete="email" required></label>
+      <label class="f">WhatsApp com DDD <span class="hint" style="font-weight:400">(ex.: 33 99999-1234; os lembretes da escala chegam por aqui)</span><input type="tel" id="c-whats" autocomplete="tel" inputmode="tel" required placeholder="(33) 99999-1234"></label>
       <label class="f">Senha <span class="hint" style="font-weight:400">(pelo menos 6 letras ou números)</span><input type="password" id="c-senha" autocomplete="new-password" required minlength="6"></label>
       <button class="primary" type="submit">Criar conta</button>
     </form>`}
@@ -104,20 +108,21 @@ function telaLogin(aba = 'entrar') {
   } else {
     $('#f-criar').onsubmit = async e => {
       e.preventDefault();
-      const nome = limpaNome($('#c-nome').value), apelido = limpaNome($('#c-apelido').value);
+      const nome = limpaNome($('#c-nome').value), apelido = limpaNome($('#c-apelido').value), whats = limpaWhats($('#c-whats').value);
       if (nome.split(' ').length < 2) { msg('#conta-msg', 'Escreva o nome completo (nome e sobrenome).', 'err'); return; }
+      if (!whats) { msg('#conta-msg', 'Escreva o WhatsApp com DDD, por exemplo (33) 99999-1234.', 'err'); return; }
       msg('#conta-msg', 'Criando sua conta…');
       try {
         const cred = await createUserWithEmailAndPassword(auth, $('#c-email').value.trim(), $('#c-senha').value);
         await updateProfile(cred.user, { displayName: nome }).catch(() => {});
-        await salvaPerfil(cred.user, nome, apelido);
+        await salvaPerfil(cred.user, nome, apelido, whats);
         entrou(cred.user);
       } catch (err) { msg('#conta-msg', erro(err), 'err'); }
     };
   }
 }
-async function salvaPerfil(u, nome, apelido) {
-  PERFIL = { uid: u.uid, nome, apelido: apelido || '', email: (u.email || '').toLowerCase() };
+async function salvaPerfil(u, nome, apelido, whatsapp) {
+  PERFIL = { uid: u.uid, nome, apelido: apelido || '', email: (u.email || '').toLowerCase(), whatsapp: whatsapp || '' };
   await setDoc(doc(db, 'membros', u.uid), { ...PERFIL, atualizado: serverTimestamp() }, { merge: true });
 }
 onAuthStateChanged(auth, u => u ? entrou(u) : telaLogin());
@@ -126,14 +131,16 @@ async function entrou(u) {
     PERFIL = null;
     try { const p = await getDoc(doc(db, 'membros', u.uid)); if (p.exists()) PERFIL = { uid: u.uid, ...p.data() }; } catch (e) {}
   }
-  if (!PERFIL) { /* conta criada mas sem perfil (raro): completa o cadastro */
+  if (!PERFIL || !PERFIL.whatsapp) { /* sem perfil ou sem WhatsApp: completa o cadastro */
+    const P = PERFIL || {};
     $('#c-quest').classList.add('hidden');
-    $('#c-conta').innerHTML = `<h2>Complete seu cadastro</h2><form id="f-perfil"><label class="f">Nome completo<input type="text" id="p-nome" value="${esc(u.displayName || '')}" required minlength="5"></label><label class="f">Como seu nome aparece na escala (opcional)<input type="text" id="p-apelido" maxlength="40"></label><button class="primary" type="submit">Salvar</button></form><div id="conta-msg"></div>`;
-    $('#f-perfil').onsubmit = async e => { e.preventDefault(); const nome = limpaNome($('#p-nome').value); if (nome.split(' ').length < 2) { msg('#conta-msg', 'Escreva o nome completo.', 'err'); return; } try { await salvaPerfil(u, nome, limpaNome($('#p-apelido').value)); entrou(u); } catch (err) { msg('#conta-msg', 'Não consegui salvar. Tente de novo.', 'err'); } };
+    $('#c-conta').innerHTML = `<h2>Complete seu cadastro</h2><p class="lead">${P.nome ? 'Falta só o seu WhatsApp: é por ele que chegam os lembretes da escala.' : 'Preencha seus dados para continuar.'}</p><form id="f-perfil"><label class="f">Nome completo<input type="text" id="p-nome" value="${esc(P.nome || u.displayName || '')}" required minlength="5"></label><label class="f">Como seu nome aparece na escala (opcional)<input type="text" id="p-apelido" value="${esc(P.apelido || '')}" maxlength="40"></label><label class="f">WhatsApp com DDD<input type="tel" id="p-whats" inputmode="tel" required placeholder="(33) 99999-1234"></label><button class="primary" type="submit">Salvar</button></form><div id="conta-msg"></div>`;
+    $('#f-perfil').onsubmit = async e => { e.preventDefault(); const nome = limpaNome($('#p-nome').value), whats = limpaWhats($('#p-whats').value); if (nome.split(' ').length < 2) { msg('#conta-msg', 'Escreva o nome completo.', 'err'); return; } if (!whats) { msg('#conta-msg', 'Escreva o WhatsApp com DDD, por exemplo (33) 99999-1234.', 'err'); return; } try { await salvaPerfil(u, nome, limpaNome($('#p-apelido').value), whats); entrou(u); } catch (err) { msg('#conta-msg', 'Não consegui salvar. Tente de novo.', 'err'); } };
     return;
   }
-  $('#c-conta').innerHTML = `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:200px"><b>Olá, ${esc(PERFIL.nome.split(' ')[0])}!</b><br><span class="hint">${esc(PERFIL.email)} · os lembretes de terça chegam neste e-mail</span></div><button type="button" id="sair">Sair</button></div>`;
+  $('#c-conta').innerHTML = `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:200px"><b>Olá, ${esc(PERFIL.nome.split(' ')[0])}!</b><br><span class="hint">${esc(PERFIL.email)} · WhatsApp ${esc(mostraWhats(PERFIL.whatsapp))} · os lembretes da escala chegam toda terça</span></div><button type="button" id="trocar-whats">Trocar WhatsApp</button><button type="button" id="sair">Sair</button></div>`;
   $('#sair').onclick = () => { PERFIL = null; signOut(auth); };
+  $('#trocar-whats').onclick = () => { PERFIL.whatsapp = ''; entrou(u); };
   carrega();
 }
 

@@ -152,7 +152,7 @@ table.r th{background:var(--soft)}
 
 <div class="card hidden" id="v-lemb">
   <h2>Lembretes de terça</h2>
-  <p class="lead">Toda terça-feira, quem está escalado para o domingo seguinte recebe um e-mail de lembrete. Aqui você confere quem vai receber e liga cada nome da escala à conta da pessoa. A equipe cria a conta na página <a href="escala.html" target="_blank">Disponibilidade</a>.</p>
+  <p class="lead">Toda terça-feira, por volta das 8h, quem está escalado para o domingo seguinte recebe um lembrete no WhatsApp (e por e-mail). Aqui você confere quem vai receber e liga cada nome da escala à conta da pessoa. A equipe cria a conta na página <a href="escala.html" target="_blank">Disponibilidade</a>.</p>
   <div class="row" style="align-items:flex-end"><label>Domingo<input type="date" id="l-data"></label><button type="button" id="l-ver">Ver</button></div>
   <div id="l-lista" style="margin-top:12px"><p class="hint">Carregando…</p></div>
   <div class="row" style="margin-top:12px"><button type="button" class="primary" id="l-salvar">💾 Salvar ligações</button></div>
@@ -666,7 +666,7 @@ async function dadosLembretes(d) {
   };
   const itensLig = itens.map(it => ({ ...it, m: acha(it.n) }));
   const pessoas = {};
-  itensLig.forEach(it => { if (!it.m) return; const p = pessoas[it.m.id] = pessoas[it.m.id] || { nome: it.m.nome, email: it.m.email, nomeNaEscala: it.n, funcoes: [] }; if (!p.funcoes.includes(it.f)) p.funcoes.push(it.f); });
+  itensLig.forEach(it => { if (!it.m) return; const p = pessoas[it.m.id] = pessoas[it.m.id] || { nome: it.m.nome, email: it.m.email, whatsapp: it.m.whatsapp || '', nomeNaEscala: it.n, funcoes: [] }; if (!p.funcoes.includes(it.f)) p.funcoes.push(it.f); });
   return { data: d, dataBr: brDt(d), pessoas: Object.values(pessoas), semConta: itensLig.filter(it => !it.m).map(it => ({ n: it.n, f: it.f })), itensLig, membros, lig };
 }
 /* usado pela tarefa semanal de terça: devolve quem recebe o lembrete do próximo domingo */
@@ -688,7 +688,7 @@ async function desenhaLembretes() {
   $('#l-lista').innerHTML = '<p class="hint">Carregando…</p>';
   try { LEM = await dadosLembretes($('#l-data').value); } catch (e) { $('#l-lista').innerHTML = '<p class="hint">Não consegui ler (' + esc(e.code || e.message) + ').</p>'; return; }
   if (!LEM.itensLig.length) { $('#l-lista').innerHTML = `<p class="hint">Não há escala para ${LEM.dataBr}.</p>`; return; }
-  const ops = sel => '<option value="">— sem conta (não recebe) —</option>' + LEM.membros.slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map(m => `<option value="${m.id}"${m.id === sel ? ' selected' : ''}>${esc(m.nome)} · ${esc(m.email)}</option>`).join('');
+  const ops = sel => '<option value="">— sem conta (não recebe) —</option>' + LEM.membros.slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt')).map(m => `<option value="${m.id}"${m.id === sel ? ' selected' : ''}>${esc(m.nome)} · ${esc(m.whatsapp ? 'WhatsApp ✓' : 'sem WhatsApp')}</option>`).join('');
   const vistos = new Set();
   $('#l-lista').innerHTML = `<p><b>${LEM.pessoas.length}</b> pessoa(s) vão receber o lembrete de ${LEM.dataBr}${LEM.semConta.length ? ` · <b>${LEM.semConta.length}</b> nome(s) da escala sem conta ligada` : ''}.</p>` +
     LEM.itensLig.filter(it => { const k = normN(it.n); if (vistos.has(k)) return false; vistos.add(k); return true; }).map(it => `<div class="erow"><span><b>${esc(it.n)}</b><br><span class="hint">${esc(LEM.itensLig.filter(x => normN(x.n) === normN(it.n)).map(x => x.f).join(', '))}</span></span>
