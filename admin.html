@@ -110,9 +110,14 @@ table.r th{background:var(--soft)}
   <h2>Cadastros pendentes</h2>
   <div id="aprov-msg"></div>
   <div id="pend-list"><p class="hint">Carregando…</p></div>
-  <h3 class="sub">Equipe (cadastros feitos pela página Login)</h3>
-  <p class="hint" style="margin:0 0 8px">Escolha o papel de cada pessoa: <b>Membro</b> só responde o questionário da escala; <b>Líder</b> também entra neste painel para mexer na escala e no repertório.</p>
-  <div id="memb-list"><p class="hint">Carregando…</p></div>
+</div>
+
+<div class="card hidden" id="v-equipe">
+  <h2>👥 Equipe cadastrada</h2>
+  <p class="lead">Todas as pessoas que criaram conta na página <a href="escala.html" target="_blank">Login</a>. Troque entre <b>Membro</b> (só responde o questionário da escala) e <b>Líder</b> (também entra neste painel para mexer na escala e no repertório). A mudança é salva na hora.</p>
+  <div class="row" style="align-items:flex-end"><label style="flex:1">Procurar<input type="search" id="eq-busca" placeholder="Nome, e-mail ou WhatsApp"></label><button type="button" id="eq-atualizar">Atualizar lista</button></div>
+  <div id="eq-msg"></div>
+  <div id="memb-list" style="margin-top:10px"><p class="hint">Carregando…</p></div>
 </div>
 
 <div class="card hidden" id="v-rep">
@@ -213,7 +218,7 @@ import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, qu
 const CFG = window.LOUVOR_CONFIG || {};
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const show = (...ids) => { ['v-config','v-login','v-espera','v-verificar','v-aprov','v-rep','v-escala','v-lemb','v-quest','v-gerais'].forEach(id => $('#'+id).classList.toggle('hidden', !ids.includes(id))); };
+const show = (...ids) => { ['v-config','v-login','v-espera','v-verificar','v-aprov','v-equipe','v-rep','v-escala','v-lemb','v-quest','v-gerais'].forEach(id => $('#'+id).classList.toggle('hidden', !ids.includes(id))); };
 const msg = (el, text, kind='') => { $(el).innerHTML = text ? `<div class="msg ${kind}">${text}</div>` : ''; };
 const DONO = String(CFG.dono || '').toLowerCase();
 const SITE = location.origin + location.pathname.replace(/[^/]*$/, '');
@@ -289,7 +294,7 @@ async function entrouComo(u) {
   const ehDono = (u.email || '').toLowerCase() === DONO;
   if (ehDono) {
     if (!u.emailVerified) { $('#ver-email').textContent = u.email; show('v-verificar'); return; }
-    show('v-aprov', 'v-rep', 'v-escala', 'v-lemb', 'v-quest', 'v-gerais');
+    show('v-aprov', 'v-equipe', 'v-rep', 'v-escala', 'v-lemb', 'v-quest', 'v-gerais');
     await carregaPendentes();
     iniciaEditor(); iniciaEscala(); iniciaLembretes(); iniciaQuest(); carregaGerais();
     return;
@@ -334,23 +339,38 @@ async function definePapel(uid, m, papel) {
   if (papel === 'lider') await setDoc(uref, { nome: m.nome, email: m.email, aprovado: true, papel: 'lider', aprovadoEm: serverTimestamp(), ...(us.exists() ? {} : { criado: serverTimestamp() }) }, { merge: true });
   else if (us.exists() && us.data().papel === 'lider') await updateDoc(uref, { aprovado: false, papel: papel });
 }
+let EQUIPE = [];
 async function carregaEquipe() {
   const box = $('#memb-list');
+  if (!$('#eq-busca').dataset.ligado) { $('#eq-busca').dataset.ligado = 1; $('#eq-busca').oninput = desenhaEquipe; $('#eq-atualizar').onclick = carregaEquipe; }
   try {
-    const ms = (await getDocs(collection(db, 'membros'))).docs.map(d => ({ id: d.id, ...d.data() })).filter(m => m.email);
-    const pend = ms.filter(m => m.aprovado !== true && m.papel !== 'recusado').sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
-    const aprov = ms.filter(m => m.aprovado === true).sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
-    const sel = (m, v) => `<select data-papel="${m.id}">${Object.entries(PAPEIS).map(([k, t]) => `<option value="${k}"${k === v ? ' selected' : ''}>${t}</option>`).join('')}</select>`;
-    const linha = (m, botoes) => `<div class="erow" data-m="${m.id}"><span><b>${esc(m.nome)}</b><br><span class="hint">${esc(m.email)} · ${esc(fmtWhats(m.whatsapp))}</span></span>${sel(m, m.papel === 'lider' ? 'lider' : 'membro')}<span style="display:flex;gap:6px">${botoes}</span></div>`;
-    box.innerHTML = (pend.length ? `<p><b>${pend.length}</b> cadastro(s) esperando aprovação:</p>` + pend.map(m => linha(m, `<button type="button" class="primary" data-ok="${m.id}">Aprovar</button><button type="button" data-nao="${m.id}">Recusar</button>`)).join('') : '<p class="hint">Nenhum cadastro novo esperando.</p>')
-      + (aprov.length ? `<p style="margin-top:14px"><b>${aprov.length}</b> pessoa(s) liberada(s):</p>` + aprov.map(m => linha(m, `<button type="button" data-salva="${m.id}">Salvar</button>`)).join('') : '');
-    const acha = id => ms.find(m => m.id === id);
-    const papelDe = id => box.querySelector(`select[data-papel="${id}"]`).value;
-    const faz = async (b, id, papel, texto) => { b.disabled = true; try { await definePapel(id, acha(id), papel); msg('#aprov-msg', texto, 'ok'); carregaEquipe(); } catch (e) { b.disabled = false; msg('#aprov-msg', 'Não consegui: ' + esc(e.code || e.message), 'err'); } };
-    box.querySelectorAll('[data-ok]').forEach(b => b.onclick = () => { const id = b.dataset.ok, p = papelDe(id); faz(b, id, p, `✅ ${esc(acha(id).nome)} liberado(a) como ${PAPEIS[p]}.`); });
-    box.querySelectorAll('[data-salva]').forEach(b => b.onclick = () => { const id = b.dataset.salva, p = papelDe(id); faz(b, id, p, `✅ ${esc(acha(id).nome)} agora é ${PAPEIS[p]}.`); });
-    box.querySelectorAll('[data-nao]').forEach(b => b.onclick = () => { const id = b.dataset.nao; if (confirm('Recusar o cadastro de ' + acha(id).nome + '?')) faz(b, id, 'recusado', `Cadastro de ${esc(acha(id).nome)} recusado.`); });
+    EQUIPE = (await getDocs(collection(db, 'membros'))).docs.map(d => ({ id: d.id, ...d.data() })).filter(m => m.email).sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+    desenhaEquipe();
   } catch (e) { box.innerHTML = '<p class="hint">Não consegui ler a equipe (' + esc(e.code || e.message) + ').</p>'; }
+}
+function desenhaEquipe() {
+  const box = $('#memb-list'), q = normN($('#eq-busca').value);
+  const lista = EQUIPE.filter(m => !q || normN(m.nome + ' ' + m.email + ' ' + (m.whatsapp || '')).includes(q) || (m.whatsapp || '').includes(q.replace(/\D/g, '') || '§'));
+  const estado = m => m.aprovado === true ? (m.papel === 'lider' ? 'lider' : 'membro') : (m.papel === 'recusado' ? 'recusado' : 'pendente');
+  const ROT = { pendente: '⏳ Aguardando', membro: '✅ Membro', lider: '⭐ Líder', recusado: '⛔ Recusado' };
+  const cont = k => EQUIPE.filter(m => estado(m) === k).length;
+  box.innerHTML = `<p class="hint" style="margin:0 0 8px">${EQUIPE.length} cadastro(s): ${cont('lider')} líder(es), ${cont('membro')} membro(s), ${cont('pendente')} aguardando${cont('recusado') ? `, ${cont('recusado')} recusado(s)` : ''}.</p>` +
+    (lista.map(m => { const e = estado(m); return `<div class="erow" style="grid-template-columns:1fr 190px 120px">
+      <span><b>${esc(m.nome)}</b> <span class="hint">${ROT[e]}</span><br><span class="hint">${esc(m.email)} · ${esc(fmtWhats(m.whatsapp))}</span></span>
+      <select data-papel="${m.id}" aria-label="Papel de ${esc(m.nome)}">${e === 'pendente' ? '<option value="" selected>— escolher —</option>' : ''}<option value="membro"${e === 'membro' ? ' selected' : ''}>Membro</option><option value="lider"${e === 'lider' ? ' selected' : ''}>Líder</option><option value="recusado"${e === 'recusado' ? ' selected' : ''}>Recusado (sem acesso)</option></select>
+      <span class="hint" data-st="${m.id}"></span></div>`; }).join('') || '<p class="hint">Ninguém encontrado.</p>');
+  box.querySelectorAll('select[data-papel]').forEach(s => s.onchange = async () => {
+    const id = s.dataset.papel, m = EQUIPE.find(x => x.id === id), p = s.value, st = box.querySelector(`[data-st="${id}"]`);
+    if (!p) return;
+    if (p === 'recusado' && !confirm(`Tirar o acesso de ${m.nome}?`)) { desenhaEquipe(); return; }
+    s.disabled = true; st.textContent = 'Salvando…';
+    try {
+      await definePapel(id, m, p);
+      Object.assign(m, p === 'recusado' ? { aprovado: false, papel: 'recusado' } : { aprovado: true, papel: p });
+      msg('#eq-msg', `✅ ${esc(m.nome)}: ${p === 'lider' ? 'Líder' : p === 'membro' ? 'Membro' : 'sem acesso'}.`, 'ok');
+      desenhaEquipe();
+    } catch (e) { s.disabled = false; st.textContent = ''; msg('#eq-msg', 'Não consegui salvar: ' + esc(e.code || e.message), 'err'); }
+  });
 }
 
 /* ---------- editor do repertório ---------- */
