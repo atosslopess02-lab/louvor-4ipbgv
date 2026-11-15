@@ -82,7 +82,7 @@ thead th.current{background:var(--ink)}
 .quick{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px dashed var(--line)}
 .quick .ql{width:100%;color:var(--muted);font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .qbtn{flex:1 1 150px;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;font-weight:700;border-radius:999px;padding:10px 16px;color:#fff;min-height:44px}
-.qbtn.sp{background:#1a7f45}.cflink{margin:14px 0 0;font-size:.92rem}.cflink a{color:var(--green);font-weight:700}.qbtn.yt{background:#c4302b}.qbtn:hover{filter:brightness(1.1)}
+.qbtn.sp{background:#1a7f45}.cflink{margin:14px 0 0}.cflink a{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;box-sizing:border-box;min-height:52px;padding:12px 18px;border-radius:999px;background:#fff;color:#1a7f45;border:2px solid #1a7f45;font-weight:800;font-size:1.05rem;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.12)}.cflink a:hover{background:#eef8f1}.qbtn.yt{background:#c4302b}.qbtn:hover{filter:brightness(1.1)}
 .ico{display:inline-block;width:1.4em}
 .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
 .filters input{flex:1 1 240px;min-width:0;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit}
@@ -288,7 +288,7 @@ const wkTit = wk ? (wk.titulo || ('Repertório – ' + br(cur) + ' – 4ª IPB G
 const wkBtns = wk ? `${wk.sp?`<a class="qbtn sp" href="${wk.sp}">🎧 Spotify</a>`:''}${wk.yt?`<a class="qbtn yt" href="${wk.yt}">▶️ YouTube</a>`:''}` : '';
 const quick = wk ? `<div class="quick"><span class="ql">${esc(wkTit)}</span>${wkBtns}</div>` : '';
 document.getElementById('nx-set').insertAdjacentHTML('beforeend', quick);
-if (cf) document.getElementById('nx-set').insertAdjacentHTML('beforeend', `<p class="cflink"><a href="${cf.pdf}" download>📄 Baixe todas as cifras em PDF</a></p>`);
+if (cf) document.getElementById('nx-set').insertAdjacentHTML('beforeend', `<p class="cflink"><a href="${cf.pdf}" download>📄 Baixar todas as cifras em PDF</a></p>`);
 document.getElementById('wk-pl').innerHTML = wk ? `<div class="card" style="margin-bottom:16px"><div class="eyebrow">${esc(wkTit)}</div><p style="margin:.3em 0 0">Todas as músicas do domingo juntas, na ordem do culto, com os hinos.</p><div class="quick">${wkBtns}</div></div>` : '';
 
 /* Escala */
