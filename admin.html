@@ -110,6 +110,9 @@ table.r th{background:var(--soft)}
   <h2>Cadastros pendentes</h2>
   <div id="aprov-msg"></div>
   <div id="pend-list"><p class="hint">Carregando…</p></div>
+  <h3 class="sub">Equipe (cadastros feitos pela página Login)</h3>
+  <p class="hint" style="margin:0 0 8px">Escolha o papel de cada pessoa: <b>Membro</b> só responde o questionário da escala; <b>Líder</b> também entra neste painel para mexer na escala e no repertório.</p>
+  <div id="memb-list"><p class="hint">Carregando…</p></div>
 </div>
 
 <div class="card hidden" id="v-rep">
@@ -152,7 +155,7 @@ table.r th{background:var(--soft)}
 
 <div class="card hidden" id="v-lemb">
   <h2>Lembretes de terça</h2>
-  <p class="lead">Toda terça-feira, por volta das 8h, quem está escalado para o domingo seguinte recebe um lembrete no WhatsApp (e por e-mail). Aqui você confere quem vai receber e liga cada nome da escala à conta da pessoa. A equipe cria a conta na página <a href="escala.html" target="_blank">Disponibilidade</a>.</p>
+  <p class="lead">Toda terça-feira, por volta das 8h, quem está escalado para o domingo seguinte recebe um lembrete no WhatsApp (e por e-mail). Aqui você confere quem vai receber e liga cada nome da escala à conta da pessoa. A equipe cria a conta na página <a href="escala.html" target="_blank">Login</a>.</p>
   <div class="row" style="align-items:flex-end"><label>Domingo<input type="date" id="l-data"></label><button type="button" id="l-ver">Ver</button></div>
   <div id="l-lista" style="margin-top:12px"><p class="hint">Carregando…</p></div>
   <div class="row" style="margin-top:12px"><button type="button" class="primary" id="l-salvar">💾 Salvar ligações</button></div>
@@ -161,7 +164,7 @@ table.r th{background:var(--soft)}
 
 <div class="card hidden" id="v-quest">
   <h2>Questionário da escala</h2>
-  <p class="lead">Monte aqui o questionário de disponibilidade do próximo mês. A equipe responde na página <a href="escala.html" target="_blank">Disponibilidade para a escala</a>, só no período escolhido. Para responder, cada pessoa faz um cadastro simples com o nome completo.</p>
+  <p class="lead">Monte aqui o questionário de disponibilidade do próximo mês. A equipe responde na página <a href="escala.html" target="_blank">Login</a>, só no período escolhido. Para responder, cada pessoa faz um cadastro simples com o nome completo.</p>
   <div class="row">
     <label>Mês da escala<input type="month" id="q-mes"></label>
     <label>Abre em<input type="date" id="q-abre"></label>
@@ -316,6 +319,38 @@ async function carregaPendentes() {
       msg('#aprov-msg', '✅ Cadastro aceito.', 'ok');
     });
   } catch (e) { $('#pend-list').innerHTML = '<p class="hint">Não consegui ler os pedidos (' + esc(e.code || e.message) + ').</p>'; }
+  carregaEquipe();
+}
+
+/* ---------- equipe: aprovar cadastros da página Login como Membro ou Líder (só o dono) ---------- */
+const PAPEIS = { membro: 'Membro', lider: 'Líder' };
+const fmtWhats = d => d ? `(${d.slice(2, 4)}) ${d.slice(4, -4)}-${d.slice(-4)}` : 'sem WhatsApp';
+async function definePapel(uid, m, papel) {
+  await updateDoc(doc(db, 'membros', uid), papel === 'recusado'
+    ? { aprovado: false, papel: 'recusado', atualizadoPor: auth.currentUser.email }
+    : { aprovado: true, papel, aprovadoEm: serverTimestamp(), atualizadoPor: auth.currentUser.email });
+  /* Líder ganha acesso ao painel (escala e repertório); Membro ou recusado perde */
+  const uref = doc(db, 'usuarios', uid); const us = await getDoc(uref);
+  if (papel === 'lider') await setDoc(uref, { nome: m.nome, email: m.email, aprovado: true, papel: 'lider', aprovadoEm: serverTimestamp(), ...(us.exists() ? {} : { criado: serverTimestamp() }) }, { merge: true });
+  else if (us.exists() && us.data().papel === 'lider') await updateDoc(uref, { aprovado: false, papel: papel });
+}
+async function carregaEquipe() {
+  const box = $('#memb-list');
+  try {
+    const ms = (await getDocs(collection(db, 'membros'))).docs.map(d => ({ id: d.id, ...d.data() })).filter(m => m.email);
+    const pend = ms.filter(m => m.aprovado !== true && m.papel !== 'recusado').sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+    const aprov = ms.filter(m => m.aprovado === true).sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+    const sel = (m, v) => `<select data-papel="${m.id}">${Object.entries(PAPEIS).map(([k, t]) => `<option value="${k}"${k === v ? ' selected' : ''}>${t}</option>`).join('')}</select>`;
+    const linha = (m, botoes) => `<div class="erow" data-m="${m.id}"><span><b>${esc(m.nome)}</b><br><span class="hint">${esc(m.email)} · ${esc(fmtWhats(m.whatsapp))}</span></span>${sel(m, m.papel === 'lider' ? 'lider' : 'membro')}<span style="display:flex;gap:6px">${botoes}</span></div>`;
+    box.innerHTML = (pend.length ? `<p><b>${pend.length}</b> cadastro(s) esperando aprovação:</p>` + pend.map(m => linha(m, `<button type="button" class="primary" data-ok="${m.id}">Aprovar</button><button type="button" data-nao="${m.id}">Recusar</button>`)).join('') : '<p class="hint">Nenhum cadastro novo esperando.</p>')
+      + (aprov.length ? `<p style="margin-top:14px"><b>${aprov.length}</b> pessoa(s) liberada(s):</p>` + aprov.map(m => linha(m, `<button type="button" data-salva="${m.id}">Salvar</button>`)).join('') : '');
+    const acha = id => ms.find(m => m.id === id);
+    const papelDe = id => box.querySelector(`select[data-papel="${id}"]`).value;
+    const faz = async (b, id, papel, texto) => { b.disabled = true; try { await definePapel(id, acha(id), papel); msg('#aprov-msg', texto, 'ok'); carregaEquipe(); } catch (e) { b.disabled = false; msg('#aprov-msg', 'Não consegui: ' + esc(e.code || e.message), 'err'); } };
+    box.querySelectorAll('[data-ok]').forEach(b => b.onclick = () => { const id = b.dataset.ok, p = papelDe(id); faz(b, id, p, `✅ ${esc(acha(id).nome)} liberado(a) como ${PAPEIS[p]}.`); });
+    box.querySelectorAll('[data-salva]').forEach(b => b.onclick = () => { const id = b.dataset.salva, p = papelDe(id); faz(b, id, p, `✅ ${esc(acha(id).nome)} agora é ${PAPEIS[p]}.`); });
+    box.querySelectorAll('[data-nao]').forEach(b => b.onclick = () => { const id = b.dataset.nao; if (confirm('Recusar o cadastro de ' + acha(id).nome + '?')) faz(b, id, 'recusado', `Cadastro de ${esc(acha(id).nome)} recusado.`); });
+  } catch (e) { box.innerHTML = '<p class="hint">Não consegui ler a equipe (' + esc(e.code || e.message) + ').</p>'; }
 }
 
 /* ---------- editor do repertório ---------- */
