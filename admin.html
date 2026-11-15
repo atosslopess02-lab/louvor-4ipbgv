@@ -296,7 +296,9 @@ const MODO_LIDER = new URLSearchParams(location.search).get('modo') === 'lider';
 if (MODO_LIDER) {
   document.body.classList.add('embutido');
   const st = document.createElement('style');
-  st.textContent = 'body.embutido{background:transparent}body.embutido .bar{display:none}body.embutido main{max-width:none;padding:4px 18px 18px}body.embutido .card{border:0;border-top:1px solid var(--line);border-radius:0;padding:16px 0;margin:0;background:transparent}';
+  st.textContent = 'body.embutido{background:transparent}body.embutido .bar{display:none}body.embutido main{max-width:none;padding:0 0 4px}body.embutido .card{margin:0 0 18px;border:1px solid var(--line);border-left:6px solid var(--green);border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06)}body.embutido .card h2{font-size:1.15rem}';
+  const t = document.querySelector('#v-quest h2'); if (t) t.textContent = '⚙️ Configurar o questionário da escala (líder)';
+  [['#v-rep', '🎵 '], ['#v-escala', '📅 '], ['#v-lemb', '🔔 ']].forEach(([s, e]) => { const h = document.querySelector(s + ' h2'); if (h && !/^\p{Extended_Pictographic}/u.test(h.textContent)) h.textContent = e + h.textContent; });
   document.head.appendChild(st);
   const avisa = () => { try { parent.postMessage({ alturaPainel: document.documentElement.scrollHeight }, location.origin); } catch (e) {} };
   new ResizeObserver(avisa).observe(document.body); addEventListener('load', avisa);
@@ -378,10 +380,24 @@ function desenhaEquipe() {
   const ROT = { pendente: '⏳ Aguardando', membro: '✅ Membro', lider: '⭐ Líder', recusado: '⛔ Recusado' };
   const cont = k => EQUIPE.filter(m => estado(m) === k).length;
   box.innerHTML = `<p class="hint" style="margin:0 0 8px">${EQUIPE.length} cadastro(s): ${cont('lider')} líder(es), ${cont('membro')} membro(s), ${cont('pendente')} aguardando${cont('recusado') ? `, ${cont('recusado')} recusado(s)` : ''}.</p>` +
-    (lista.map(m => { const e = estado(m); return `<div class="erow" style="grid-template-columns:1fr 190px 120px">
+    (lista.map(m => { const e = estado(m); return `<div class="erow" style="grid-template-columns:1fr 190px 90px 44px">
       <span><b>${esc(m.nome)}</b> <span class="hint">${ROT[e]}</span><br><span class="hint">${esc(m.email)} · ${esc(fmtWhats(m.whatsapp))}</span></span>
       <select data-papel="${m.id}" aria-label="Papel de ${esc(m.nome)}">${e === 'pendente' ? '<option value="" selected>— escolher —</option>' : ''}<option value="membro"${e === 'membro' ? ' selected' : ''}>Membro</option><option value="lider"${e === 'lider' ? ' selected' : ''}>Líder</option><option value="recusado"${e === 'recusado' ? ' selected' : ''}>Recusado (sem acesso)</option></select>
-      <span class="hint" data-st="${m.id}"></span></div>`; }).join('') || '<p class="hint">Ninguém encontrado.</p>');
+      <span class="hint" data-st="${m.id}"></span>
+      <button type="button" data-apaga="${m.id}" title="Remover o cadastro de ${esc(m.nome)}" aria-label="Remover o cadastro de ${esc(m.nome)}" style="padding:4px 0;justify-content:center;min-width:40px">🗑️</button></div>`; }).join('') || '<p class="hint">Ninguém encontrado.</p>');
+  box.querySelectorAll('[data-apaga]').forEach(b => b.onclick = async () => {
+    const id = b.dataset.apaga, m = EQUIPE.find(x => x.id === id);
+    if (!confirm(`Remover o cadastro de ${m.nome}?\n\nA pessoa sai da lista da equipe, perde o acesso de membro/líder e deixa de receber os lembretes. Se ela entrar de novo no Login, vai precisar se cadastrar outra vez e esperar a sua aprovação.`)) return;
+    b.disabled = true;
+    try {
+      const uref = doc(db, 'usuarios', id), us = await getDoc(uref);
+      if (us.exists()) await updateDoc(uref, { aprovado: false, papel: 'removido', removidoEm: serverTimestamp() });
+      await deleteDoc(doc(db, 'membros', id));
+      EQUIPE = EQUIPE.filter(x => x.id !== id);
+      msg('#eq-msg', `🗑️ Cadastro de ${esc(m.nome)} removido.`, 'ok');
+      desenhaEquipe();
+    } catch (e) { b.disabled = false; msg('#eq-msg', 'Não consegui remover: ' + esc(e.code || e.message), 'err'); }
+  });
   box.querySelectorAll('select[data-papel]').forEach(s => s.onchange = async () => {
     const id = s.dataset.papel, m = EQUIPE.find(x => x.id === id), p = s.value, st = box.querySelector(`[data-st="${id}"]`);
     if (!p) return;
