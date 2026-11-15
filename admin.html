@@ -73,11 +73,11 @@ table.r th{background:var(--soft)}
 </div>
 
 <div class="card hidden" id="v-login">
-  <h2>Área dos administradores</h2>
-  <p class="lead">Aqui os administradores montam o repertório de domingo que aparece na primeira página do site. O montador de cifras continua aberto para todos.</p>
+  <h2>Administrador master</h2>
+  <p class="lead">Acesso só do administrador master. <b>Líderes e membros da equipe</b>: entrem pela página <a href="escala.html">Login</a>.</p>
   <div class="tabs" role="tablist">
     <button type="button" role="tab" aria-selected="true" data-tab="entrar">Entrar</button>
-    <button type="button" role="tab" aria-selected="false" data-tab="cadastro">Pedir cadastro</button>
+    <button type="button" role="tab" aria-selected="false" data-tab="cadastro" class="hidden">Pedir cadastro</button>
   </div>
   <form class="form" id="f-entrar">
     <label>E-mail<input type="email" id="le" autocomplete="username" required></label>
@@ -92,6 +92,12 @@ table.r th{background:var(--soft)}
     <div class="hint">O pedido vai para o Pr. Atos aprovar. Depois da aprovação, é só entrar com este e-mail e senha.</div>
   </form>
   <div id="login-msg"></div>
+</div>
+
+<div class="card hidden" id="v-somente">
+  <h2>Página do administrador master</h2>
+  <p class="lead">Esta página é só do administrador master. Líderes e membros da equipe entram pela página <b>Login</b>: lá estão o questionário da escala e, para os líderes, a escala e o repertório.</p>
+  <div class="row"><a class="btn" href="escala.html" style="background:var(--green);color:#fff;border-color:var(--green)">🔑 Ir para o Login</a><button type="button" id="sair2">Sair desta conta</button></div>
 </div>
 
 <div class="card hidden" id="v-espera">
@@ -218,7 +224,7 @@ import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, qu
 const CFG = window.LOUVOR_CONFIG || {};
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const show = (...ids) => { ['v-config','v-login','v-espera','v-verificar','v-aprov','v-equipe','v-rep','v-escala','v-lemb','v-quest','v-gerais'].forEach(id => $('#'+id).classList.toggle('hidden', !ids.includes(id))); };
+const show = (...ids) => { ['v-config','v-login','v-somente','v-espera','v-verificar','v-aprov','v-equipe','v-rep','v-escala','v-lemb','v-quest','v-gerais'].forEach(id => $('#'+id).classList.toggle('hidden', !ids.includes(id))); };
 const msg = (el, text, kind='') => { $(el).innerHTML = text ? `<div class="msg ${kind}">${text}</div>` : ''; };
 const DONO = String(CFG.dono || '').toLowerCase();
 const SITE = location.origin + location.pathname.replace(/[^/]*$/, '');
@@ -285,24 +291,41 @@ $('#recarregar').onclick = () => location.reload();
 $('#reenviar').onclick = async () => { await sendEmailVerification(auth.currentUser).catch(() => {}); alert('E-mail reenviado.'); };
 $('#ja-confirmei').onclick = async () => { await auth.currentUser.reload(); await auth.currentUser.getIdToken(true); entrouComo(auth.currentUser); };
 
+/* ---------- modo líder: painel aberto dentro da página Login ---------- */
+const MODO_LIDER = new URLSearchParams(location.search).get('modo') === 'lider';
+if (MODO_LIDER) {
+  document.body.classList.add('embutido');
+  const st = document.createElement('style');
+  st.textContent = 'body.embutido{background:transparent}body.embutido .bar{display:none}body.embutido main{max-width:none;padding:4px 18px 18px}body.embutido .card{border:0;border-top:1px solid var(--line);border-radius:0;padding:16px 0;margin:0;background:transparent}';
+  document.head.appendChild(st);
+  const avisa = () => { try { parent.postMessage({ alturaPainel: document.documentElement.scrollHeight }, location.origin); } catch (e) {} };
+  new ResizeObserver(avisa).observe(document.body); addEventListener('load', avisa);
+}
+$('#sair2').onclick = () => signOut(auth);
+
 /* ---------- quem entrou ---------- */
 onAuthStateChanged(auth, u => entrouComo(u));
 async function entrouComo(u) {
   $('#sair').classList.toggle('hidden', !u);
   $('#who').textContent = u ? (u.displayName || u.email) : '';
-  if (!u) { show('v-login'); return; }
-  const ehDono = (u.email || '').toLowerCase() === DONO;
-  if (ehDono) {
-    if (!u.emailVerified) { $('#ver-email').textContent = u.email; show('v-verificar'); return; }
-    show('v-aprov', 'v-equipe', 'v-rep', 'v-escala', 'v-lemb', 'v-quest', 'v-gerais');
-    await carregaPendentes();
-    iniciaEditor(); iniciaEscala(); iniciaLembretes(); iniciaQuest(); carregaGerais();
+  const ehDono = !!u && (u.email || '').toLowerCase() === DONO;
+  if (MODO_LIDER) { /* dentro da página Login: só as ferramentas do líder */
+    if (!u) { show(); return; }
+    let lider = ehDono;
+    if (!lider) { try { const s = await getDoc(doc(db, 'usuarios', u.uid)); lider = s.exists() && s.data().aprovado === true; } catch (e) {} }
+    if (!lider) { show(); return; }
+    show('v-rep', 'v-escala', 'v-lemb', 'v-quest'); iniciaEditor(); iniciaEscala(); iniciaLembretes(); iniciaQuest();
     return;
   }
-  let aprovado = false;
-  try { const s = await getDoc(doc(db, 'usuarios', u.uid)); aprovado = s.exists() && s.data().aprovado === true; } catch (e) {}
-  if (!aprovado) { show('v-espera'); return; }
-  show('v-rep', 'v-escala', 'v-lemb', 'v-quest'); iniciaEditor(); iniciaEscala(); iniciaLembretes(); iniciaQuest();
+  if (!u) { show('v-login'); return; }
+  if (ehDono) {
+    if (!u.emailVerified) { $('#ver-email').textContent = u.email; show('v-verificar'); return; }
+    show('v-aprov', 'v-equipe', 'v-gerais');
+    await carregaPendentes();
+    carregaGerais();
+    return;
+  }
+  show('v-somente'); /* líderes e membros usam a página Login */
 }
 
 /* ---------- aprovações (só o dono) ---------- */

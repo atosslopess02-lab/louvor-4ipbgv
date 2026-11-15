@@ -47,6 +47,11 @@ input[type=email],input[type=password],input[type=tel]{font:inherit;color:var(--
 
 <div class="card hidden" id="c-quest"></div>
 
+<div class="card hidden" id="c-lider" style="padding:0;overflow:hidden">
+  <div style="padding:18px 18px 4px"><h2>🛠️ Ferramentas do líder</h2><p class="lead" style="margin:0">Repertório, escala atual, lembretes de terça e questionário da escala. Tudo o que mudar aqui aparece no site.</p></div>
+  <iframe id="painel-lider" title="Ferramentas do líder" style="display:block;width:100%;height:600px;border:0;background:transparent"></iframe>
+</div>
+
 </main>
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
@@ -56,6 +61,7 @@ import { getFirestore, doc, getDoc, setDoc, collection, getDocs, serverTimestamp
 const CFG = window.LOUVOR_CONFIG || {};
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const DONO = String(CFG.dono || '').toLowerCase();
 const msg = (el, t, k = '') => { const x = $(el); if (x) x.innerHTML = t ? `<div class="msg ${k}">${t}</div>` : ''; };
 const limpaNome = n => String(n || '').trim().replace(/\s+/g, ' ');
 const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
@@ -139,7 +145,9 @@ async function entrou(u) {
     $('#f-perfil').onsubmit = async e => { e.preventDefault(); const nome = limpaNome($('#p-nome').value), whats = limpaWhats($('#p-whats').value); if (nome.split(' ').length < 2) { msg('#conta-msg', 'Escreva o nome completo.', 'err'); return; } if (!whats) { msg('#conta-msg', 'Escreva o WhatsApp com DDD, por exemplo (33) 99999-1234.', 'err'); return; } try { await salvaPerfil(u, nome, whats, !PERFIL); entrou(u); } catch (err) { msg('#conta-msg', 'Não consegui salvar. Tente de novo.', 'err'); } };
     return;
   }
-  if (PERFIL.aprovado !== true) {
+  const ehDono = !!DONO && (u.email || '').toLowerCase() === DONO;
+  $('#c-lider').classList.add('hidden');
+  if (PERFIL.aprovado !== true && !ehDono) {
     $('#c-quest').classList.add('hidden');
     $('#c-conta').innerHTML = PERFIL.papel === 'recusado'
       ? `<h2>Cadastro não liberado</h2><p class="lead">Seu cadastro não foi liberado. Se achar que é engano, fale com o Pr. Atos.</p><button type="button" id="sair">Sair</button>`
@@ -147,12 +155,24 @@ async function entrou(u) {
     $('#sair').onclick = () => { PERFIL = null; signOut(auth); };
     return;
   }
-  const lider = PERFIL.papel === 'lider';
-  $('#c-conta').innerHTML = `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:200px"><b>Olá, ${esc(PERFIL.nome.split(' ')[0])}!</b> <span class="prazo" style="margin:0 0 0 6px">${lider ? 'Líder' : 'Membro'}</span>${lider ? '<br><a href="admin.html" class="btn" style="margin-top:8px;min-height:36px;padding:6px 14px">🛠️ Painel do líder: escala e repertório</a>' : ''}<br><span class="hint">${esc(PERFIL.email)} · WhatsApp ${esc(mostraWhats(PERFIL.whatsapp))} · os lembretes da escala chegam toda terça</span></div><button type="button" id="trocar-whats">Trocar WhatsApp</button><button type="button" id="sair">Sair</button></div>`;
+  const lider = ehDono || PERFIL.papel === 'lider';
+  $('#c-conta').innerHTML = `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:200px"><b>Olá, ${esc(PERFIL.nome.split(' ')[0])}!</b> <span class="prazo" style="margin:0 0 0 6px">${lider ? 'Líder' : 'Membro'}</span><br><span class="hint">${esc(PERFIL.email)} · WhatsApp ${esc(mostraWhats(PERFIL.whatsapp))} · os lembretes da escala chegam toda terça</span></div><button type="button" id="trocar-whats">Trocar WhatsApp</button><button type="button" id="sair">Sair</button></div>`;
   $('#sair').onclick = () => { PERFIL = null; signOut(auth); };
   $('#trocar-whats').onclick = () => { PERFIL.whatsapp = ''; entrou(u); };
   carrega();
+  if (lider) abrePainelLider();
 }
+
+/* ---------- ferramentas do líder (mesma página) ---------- */
+function abrePainelLider() {
+  const box = $('#c-lider'), fr = $('#painel-lider');
+  box.classList.remove('hidden');
+  if (!fr.src) fr.src = 'admin.html?modo=lider';
+}
+window.addEventListener('message', ev => {
+  if (ev.origin !== location.origin || !ev.data || typeof ev.data.alturaPainel !== 'number') return;
+  $('#painel-lider').style.height = Math.max(300, ev.data.alturaPainel + 8) + 'px';
+});
 
 /* ---------- questionário do mês ---------- */
 async function carrega() {
